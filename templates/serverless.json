@@ -1,0 +1,200 @@
+{
+  "name": "Serverless Architecture",
+  "layers": [
+    {
+      "id": 1,
+      "name": "CloudFront CDN",
+      "type": "Frontend",
+      "status": "Active",
+      "description": "Content delivery",
+      "technology": "AWS CloudFront",
+      "responsibilities": "Serve static assets",
+      "connections": [2],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.085,
+        "variableUnit": "per-gb-transferred",
+        "notes": "Pay-per-use CDN"
+      },
+      "substacks": []
+    },
+    {
+      "id": 2,
+      "name": "API Gateway",
+      "type": "API",
+      "status": "Active",
+      "description": "API management",
+      "technology": "AWS API Gateway",
+      "responsibilities": "Route API calls",
+      "connections": [3, 4, 5],
+      "dependencies": [1],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.0000000035,
+        "variableUnit": "per-request",
+        "notes": "Serverless API"
+      },
+      "substacks": []
+    },
+    {
+      "id": 3,
+      "name": "Auth Lambda",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Authentication",
+      "technology": "AWS Lambda",
+      "responsibilities": "User auth",
+      "connections": [6],
+      "dependencies": [2],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.0000002,
+        "variableUnit": "per-gb-second",
+        "notes": "Serverless compute"
+      },
+      "substacks": []
+    },
+    {
+      "id": 4,
+      "name": "Data Lambda",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Data processing",
+      "technology": "AWS Lambda",
+      "responsibilities": "CRUD operations",
+      "connections": [6],
+      "dependencies": [2],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.0000002,
+        "variableUnit": "per-gb-second",
+        "notes": "Serverless compute"
+      },
+      "substacks": []
+    },
+    {
+      "id": 5,
+      "name": "File Lambda",
+      "type": "Backend",
+      "status": "Active",
+      "description": "File handling",
+      "technology": "AWS Lambda",
+      "responsibilities": "File uploads",
+      "connections": [7],
+      "dependencies": [2],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.0000002,
+        "variableUnit": "per-gb-second",
+        "notes": "Serverless compute"
+      },
+      "substacks": []
+    },
+    {
+      "id": 6,
+      "name": "DynamoDB",
+      "type": "Database",
+      "status": "Active",
+      "description": "NoSQL database",
+      "technology": "AWS DynamoDB",
+      "responsibilities": "Store data",
+      "connections": [],
+      "dependencies": [3, 4],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.00000000125,
+        "variableUnit": "per-read",
+        "notes": "On-demand pricing"
+      },
+      "substacks": []
+    },
+    {
+      "id": 7,
+      "name": "S3 Storage",
+      "type": "Database",
+      "status": "Active",
+      "description": "Object storage",
+      "technology": "AWS S3",
+      "responsibilities": "Store files",
+      "connections": [],
+      "dependencies": [5],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "variableCost": 0.023,
+        "variableUnit": "per-gb-month",
+        "notes": "Object storage"
+      },
+      "substacks": []
+    }
+  ],
+  "usePaths": [
+    {
+      "id": "authenticate",
+      "name": "Authenticate User",
+      "description": "User authentication flow",
+      "layersInvolved": [1, 2, 3, 6],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "6": 1
+      },
+      "notes": "CDN to API Gateway to Auth Lambda to DynamoDB"
+    },
+    {
+      "id": "read-data",
+      "name": "Read Data",
+      "description": "Fetch data from database",
+      "layersInvolved": [1, 2, 4, 6],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "2": 1,
+        "4": 1,
+        "6": 1
+      },
+      "notes": "Data retrieval through serverless functions"
+    },
+    {
+      "id": "upload-file",
+      "name": "Upload File",
+      "description": "File upload to S3",
+      "layersInvolved": [1, 2, 5, 7],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "2": 1,
+        "5": 1,
+        "7": 1
+      },
+      "notes": "File upload through Lambda to S3"
+    }
+  ]
+}

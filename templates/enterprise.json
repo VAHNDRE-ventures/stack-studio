@@ -1,0 +1,1980 @@
+{
+  "name": "Enterprise E-Commerce Platform",
+  "layers": [
+    {
+      "id": 1,
+      "name": "Web Application",
+      "type": "Frontend",
+      "status": "Active",
+      "description": "Customer-facing web app",
+      "technology": "Next.js 14, TypeScript",
+      "responsibilities": "Product browsing, checkout, user account",
+      "connections": [
+        3
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 80,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Framework and base hosting"
+      },
+      "substacks": [
+        {
+          "id": "1_1",
+          "name": "Product Catalog UI",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Product display components",
+          "technology": "React Server Components",
+          "responsibilities": "Product listings, search, filters",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 50,
+            "variableCost": 0.0000001,
+            "variableUnit": "per-request",
+            "notes": "CDN for product pages"
+          }
+        },
+        {
+          "id": "1_2",
+          "name": "Shopping Cart",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Cart management",
+          "technology": "React Context",
+          "responsibilities": "Add/remove items, calculate totals",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 30,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Client-side state management"
+          }
+        },
+        {
+          "id": "1_3",
+          "name": "Checkout Flow",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Payment and shipping",
+          "technology": "React Hook Form",
+          "responsibilities": "Address, payment, order confirmation",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 40,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Form validation and UI"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "3": "HTTP"
+      }
+    },
+    {
+      "id": 2,
+      "name": "Mobile App",
+      "type": "Frontend",
+      "status": "Active",
+      "description": "iOS and Android apps",
+      "technology": "React Native",
+      "responsibilities": "Mobile shopping experience",
+      "connections": [
+        3
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 20,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "App store distribution fees"
+      },
+      "substacks": [
+        {
+          "id": "2_1",
+          "name": "Native Modules",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Platform-specific features",
+          "technology": "Swift, Kotlin",
+          "responsibilities": "Camera, push notifications, biometrics",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 60,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Native development tools"
+          }
+        },
+        {
+          "id": "2_2",
+          "name": "Offline Mode",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Offline functionality",
+          "technology": "AsyncStorage, SQLite",
+          "responsibilities": "Cache products, sync cart",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 20,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Local storage management"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "3": "HTTP"
+      }
+    },
+    {
+      "id": 3,
+      "name": "API Gateway",
+      "type": "API",
+      "status": "Active",
+      "description": "Unified API entry point",
+      "technology": "Kong Gateway",
+      "responsibilities": "Authentication, rate limiting, routing",
+      "connections": [
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "dependencies": [
+        1,
+        2
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 200,
+        "variableCost": 0.00000001,
+        "variableUnit": "per-request",
+        "notes": "Kong gateway base cost"
+      },
+      "substacks": [
+        {
+          "id": "3_1",
+          "name": "Auth Middleware",
+          "type": "API",
+          "status": "Active",
+          "description": "JWT validation",
+          "technology": "Kong JWT Plugin",
+          "responsibilities": "Verify tokens, extract user claims",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 100,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Auth service"
+          }
+        },
+        {
+          "id": "3_2",
+          "name": "Rate Limiter",
+          "type": "API",
+          "status": "Active",
+          "description": "Request throttling",
+          "technology": "Kong Rate Limiting",
+          "responsibilities": "Prevent abuse, enforce quotas",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 50,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Rate limiting service"
+          }
+        },
+        {
+          "id": "3_3",
+          "name": "Request Logger",
+          "type": "API",
+          "status": "Active",
+          "description": "Audit logging",
+          "technology": "Kong File Log",
+          "responsibilities": "Log all API requests",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 75,
+            "variableCost": 0.00000001,
+            "variableUnit": "per-log-entry",
+            "notes": "Logging infrastructure"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "4": "gRPC",
+        "5": "HTTP",
+        "6": "HTTP",
+        "7": "HTTP",
+        "8": "HTTP"
+      }
+    },
+    {
+      "id": 4,
+      "name": "Product Service",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Product catalog management",
+      "technology": "Go, gRPC",
+      "responsibilities": "Product CRUD, search, inventory",
+      "connections": [
+        9,
+        11
+      ],
+      "dependencies": [
+        3
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 150,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Microservice base compute"
+      },
+      "substacks": [
+        {
+          "id": "4_1",
+          "name": "Search Engine",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Full-text search",
+          "technology": "Elasticsearch",
+          "responsibilities": "Index products, fuzzy search",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 250,
+            "variableCost": 0.0000001,
+            "variableUnit": "per-indexed-item",
+            "notes": "Elasticsearch cluster"
+          }
+        },
+        {
+          "id": "4_2",
+          "name": "Image Processor",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Image optimization",
+          "technology": "Sharp, ImageMagick",
+          "responsibilities": "Resize, compress, generate thumbnails",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 150,
+            "variableCost": 0.00000001,
+            "variableUnit": "per-request",
+            "notes": "Image processing compute"
+          }
+        },
+        {
+          "id": "4_3",
+          "name": "Inventory Tracker",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Stock management",
+          "technology": "Redis",
+          "responsibilities": "Real-time stock levels",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 200,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Redis cache cluster"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "9": "Database",
+        "11": "Event"
+      }
+    },
+    {
+      "id": 5,
+      "name": "Order Service",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Order processing",
+      "technology": "Java Spring Boot",
+      "responsibilities": "Order creation, status tracking",
+      "connections": [
+        6,
+        10,
+        11
+      ],
+      "dependencies": [
+        3
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 200,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Microservice base compute"
+      },
+      "substacks": [
+        {
+          "id": "5_1",
+          "name": "Order Validator",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Validation logic",
+          "technology": "Spring Validation",
+          "responsibilities": "Validate order data, check inventory",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 100,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Validation service"
+          }
+        },
+        {
+          "id": "5_2",
+          "name": "Order State Machine",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Order workflow",
+          "technology": "Spring State Machine",
+          "responsibilities": "Manage order lifecycle",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 150,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Workflow engine"
+          }
+        },
+        {
+          "id": "5_3",
+          "name": "Notification Publisher",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Event publishing",
+          "technology": "Kafka Producer",
+          "responsibilities": "Publish order events",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 80,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Event publishing"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "6": "Async",
+        "10": "Database",
+        "11": "Event"
+      }
+    },
+    {
+      "id": 6,
+      "name": "Payment Service",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Payment processing",
+      "technology": "Python FastAPI",
+      "responsibilities": "Process payments, refunds",
+      "connections": [
+        10,
+        11
+      ],
+      "dependencies": [
+        3,
+        5
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 100,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Microservice base compute"
+      },
+      "substacks": [
+        {
+          "id": "6_1",
+          "name": "Stripe Integration",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Credit card processing",
+          "technology": "Stripe SDK",
+          "responsibilities": "Charge cards, handle webhooks",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 0,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": ""
+          }
+        },
+        {
+          "id": "6_2",
+          "name": "PayPal Integration",
+          "type": "Backend",
+          "status": "Active",
+          "description": "PayPal payments",
+          "technology": "PayPal SDK",
+          "responsibilities": "Process PayPal transactions",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 0,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": ""
+          }
+        },
+        {
+          "id": "6_3",
+          "name": "Fraud Detection",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Fraud prevention",
+          "technology": "Scikit-learn",
+          "responsibilities": "Score transactions, flag suspicious",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 0,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": ""
+          }
+        }
+      ],
+      "connectionTypes": {
+        "10": "Database",
+        "11": "Event"
+      }
+    },
+    {
+      "id": 7,
+      "name": "User Service",
+      "type": "Backend",
+      "status": "Active",
+      "description": "User management",
+      "technology": "Node.js Express",
+      "responsibilities": "User accounts, authentication",
+      "connections": [
+        10
+      ],
+      "dependencies": [
+        3
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 100,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Microservice base compute"
+      },
+      "substacks": [
+        {
+          "id": "7_1",
+          "name": "Auth Handler",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Login/signup",
+          "technology": "Passport.js",
+          "responsibilities": "Email/password, OAuth",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 80,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Auth service"
+          }
+        },
+        {
+          "id": "7_2",
+          "name": "Profile Manager",
+          "type": "Backend",
+          "status": "Active",
+          "description": "User profiles",
+          "technology": "Express",
+          "responsibilities": "Update profile, preferences",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 60,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Profile service"
+          }
+        },
+        {
+          "id": "7_3",
+          "name": "Session Store",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Session management",
+          "technology": "Redis",
+          "responsibilities": "Store active sessions",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 120,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Redis session cache"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "10": "Database"
+      }
+    },
+    {
+      "id": 8,
+      "name": "Notification Service",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Multi-channel notifications",
+      "technology": "Node.js",
+      "responsibilities": "Email, SMS, push notifications",
+      "connections": [
+        11
+      ],
+      "dependencies": [
+        3
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 80,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Microservice base compute"
+      },
+      "substacks": [
+        {
+          "id": "8_1",
+          "name": "Email Sender",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Email delivery",
+          "technology": "SendGrid",
+          "responsibilities": "Transactional emails",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 50,
+            "variableCost": 0.00000001,
+            "variableUnit": "per-request",
+            "notes": "SendGrid service"
+          }
+        },
+        {
+          "id": "8_2",
+          "name": "SMS Sender",
+          "type": "Backend",
+          "status": "Active",
+          "description": "SMS delivery",
+          "technology": "Twilio",
+          "responsibilities": "Order updates via SMS",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 30,
+            "variableCost": 0.0000075,
+            "variableUnit": "per-request",
+            "notes": "Twilio SMS service"
+          }
+        },
+        {
+          "id": "8_3",
+          "name": "Push Sender",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Push notifications",
+          "technology": "Firebase Cloud Messaging",
+          "responsibilities": "Mobile push notifications",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 40,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Firebase service"
+          }
+        }
+      ],
+      "connectionTypes": {
+        "11": "Message"
+      }
+    },
+    {
+      "id": 9,
+      "name": "Product Database",
+      "type": "Database",
+      "status": "Active",
+      "description": "Product catalog storage",
+      "technology": "PostgreSQL 15",
+      "responsibilities": "Store product data, categories",
+      "connections": [],
+      "dependencies": [
+        4
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 400,
+        "variableCost": 0.0001,
+        "variableUnit": "per-gb-month",
+        "notes": "Database instance"
+      },
+      "substacks": []
+    },
+    {
+      "id": 10,
+      "name": "Order Database",
+      "type": "Database",
+      "status": "Active",
+      "description": "Order and user data",
+      "technology": "MongoDB",
+      "responsibilities": "Store orders, users, sessions",
+      "connections": [],
+      "dependencies": [
+        5,
+        6,
+        7
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 500,
+        "variableCost": 0.00000005,
+        "variableUnit": "per-read",
+        "notes": "NoSQL database"
+      },
+      "substacks": []
+    },
+    {
+      "id": 11,
+      "name": "Message Queue",
+      "type": "DevOps",
+      "status": "Active",
+      "description": "Event streaming",
+      "technology": "Apache Kafka",
+      "responsibilities": "Async communication between services",
+      "connections": [],
+      "dependencies": [
+        4,
+        5,
+        6,
+        8
+      ],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 600,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Kafka cluster"
+      },
+      "substacks": [
+        {
+          "id": "11_1",
+          "name": "Order Events Topic",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Order event stream",
+          "technology": "Kafka Topic",
+          "responsibilities": "Order created, updated, shipped",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 100,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Topic storage"
+          }
+        },
+        {
+          "id": "11_2",
+          "name": "Payment Events Topic",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Payment event stream",
+          "technology": "Kafka Topic",
+          "responsibilities": "Payment success, failure, refund",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 80,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Topic storage"
+          }
+        },
+        {
+          "id": "11_3",
+          "name": "Notification Queue",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Notification queue",
+          "technology": "Kafka Topic",
+          "responsibilities": "Queue notifications for delivery",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 60,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Topic storage"
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Infrastructure",
+      "type": "DevOps",
+      "status": "Active",
+      "description": "Cloud infrastructure",
+      "technology": "AWS, Terraform",
+      "responsibilities": "Provision and manage cloud resources",
+      "connections": [],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 1000,
+        "variableCost": 0,
+        "variableUnit": "",
+        "notes": "Infrastructure overhead"
+      },
+      "substacks": [
+        {
+          "id": "12_1",
+          "name": "Container Orchestration",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Kubernetes cluster",
+          "technology": "AWS EKS",
+          "responsibilities": "Deploy and scale containers",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 300,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "EKS cluster"
+          }
+        },
+        {
+          "id": "12_2",
+          "name": "Load Balancer",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Traffic distribution",
+          "technology": "AWS ALB",
+          "responsibilities": "Distribute traffic, SSL termination",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 150,
+            "variableCost": 0.000006,
+            "variableUnit": "per-request",
+            "notes": "Application Load Balancer"
+          }
+        },
+        {
+          "id": "12_3",
+          "name": "Monitoring",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Observability stack",
+          "technology": "Prometheus, Grafana",
+          "responsibilities": "Metrics, logs, alerts",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 200,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "Monitoring infrastructure"
+          }
+        },
+        {
+          "id": "12_4",
+          "name": "CI/CD Pipeline",
+          "type": "DevOps",
+          "status": "Active",
+          "description": "Automated deployment",
+          "technology": "GitHub Actions",
+          "responsibilities": "Build, test, deploy",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 100,
+            "variableCost": 0,
+            "variableUnit": "",
+            "notes": "CI/CD service"
+          }
+        }
+      ]
+    }
+  ],
+  "usePaths": [
+    {
+      "id": "path-1",
+      "name": "Web Application",
+      "description": "Auto-generated path: Web Application",
+      "layersInvolved": [
+        1
+      ],
+      "avgCallsPerLayer": {
+        "1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3",
+      "name": "Web Application → API Gateway",
+      "description": "Auto-generated path: Web Application → API Gateway",
+      "layersInvolved": [
+        1,
+        3
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-4",
+      "name": "Web Application → API Gateway → Product Service",
+      "description": "Auto-generated path: Web Application → API Gateway → Product Service",
+      "layersInvolved": [
+        1,
+        3,
+        4
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "4": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-4-9",
+      "name": "Web Application → API Gateway → Product Service → Product Database",
+      "description": "Auto-generated path: Web Application → API Gateway → Product Service → Product Database",
+      "layersInvolved": [
+        1,
+        3,
+        4,
+        9
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "4": 1,
+        "9": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-4-11",
+      "name": "Web Application → API Gateway → Product Service → Message Queue",
+      "description": "Auto-generated path: Web Application → API Gateway → Product Service → Message Queue",
+      "layersInvolved": [
+        1,
+        3,
+        4,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "4": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-5",
+      "name": "Web Application → API Gateway → Order Service",
+      "description": "Auto-generated path: Web Application → API Gateway → Order Service",
+      "layersInvolved": [
+        1,
+        3,
+        5
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "5": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-5-6",
+      "name": "Web Application → API Gateway → Order Service → Payment Service",
+      "description": "Auto-generated path: Web Application → API Gateway → Order Service → Payment Service",
+      "layersInvolved": [
+        1,
+        3,
+        5,
+        6
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "5": 1,
+        "6": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-5-6-10",
+      "name": "Web Application → API Gateway → Order Service → Payment Service → Order Database",
+      "description": "Auto-generated path: Web Application → API Gateway → Order Service → Payment Service → Order Database",
+      "layersInvolved": [
+        1,
+        3,
+        5,
+        6,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "5": 1,
+        "6": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-5-6-11",
+      "name": "Web Application → API Gateway → Order Service → Payment Service → Message Queue",
+      "description": "Auto-generated path: Web Application → API Gateway → Order Service → Payment Service → Message Queue",
+      "layersInvolved": [
+        1,
+        3,
+        5,
+        6,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "5": 1,
+        "6": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-5-10",
+      "name": "Web Application → API Gateway → Order Service → Order Database",
+      "description": "Auto-generated path: Web Application → API Gateway → Order Service → Order Database",
+      "layersInvolved": [
+        1,
+        3,
+        5,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "5": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-5-11",
+      "name": "Web Application → API Gateway → Order Service → Message Queue",
+      "description": "Auto-generated path: Web Application → API Gateway → Order Service → Message Queue",
+      "layersInvolved": [
+        1,
+        3,
+        5,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "5": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-6",
+      "name": "Web Application → API Gateway → Payment Service",
+      "description": "Auto-generated path: Web Application → API Gateway → Payment Service",
+      "layersInvolved": [
+        1,
+        3,
+        6
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "6": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-6-10",
+      "name": "Web Application → API Gateway → Payment Service → Order Database",
+      "description": "Auto-generated path: Web Application → API Gateway → Payment Service → Order Database",
+      "layersInvolved": [
+        1,
+        3,
+        6,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "6": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-6-11",
+      "name": "Web Application → API Gateway → Payment Service → Message Queue",
+      "description": "Auto-generated path: Web Application → API Gateway → Payment Service → Message Queue",
+      "layersInvolved": [
+        1,
+        3,
+        6,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "6": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-7",
+      "name": "Web Application → API Gateway → User Service",
+      "description": "Auto-generated path: Web Application → API Gateway → User Service",
+      "layersInvolved": [
+        1,
+        3,
+        7
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "7": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-7-10",
+      "name": "Web Application → API Gateway → User Service → Order Database",
+      "description": "Auto-generated path: Web Application → API Gateway → User Service → Order Database",
+      "layersInvolved": [
+        1,
+        3,
+        7,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "7": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-8",
+      "name": "Web Application → API Gateway → Notification Service",
+      "description": "Auto-generated path: Web Application → API Gateway → Notification Service",
+      "layersInvolved": [
+        1,
+        3,
+        8
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "8": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1-3-8-11",
+      "name": "Web Application → API Gateway → Notification Service → Message Queue",
+      "description": "Auto-generated path: Web Application → API Gateway → Notification Service → Message Queue",
+      "layersInvolved": [
+        1,
+        3,
+        8,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "3": 1,
+        "8": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1_1",
+      "name": "Product Catalog UI",
+      "description": "Auto-generated path: Product Catalog UI",
+      "layersInvolved": [
+        "1_1"
+      ],
+      "avgCallsPerLayer": {
+        "1_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1_2",
+      "name": "Shopping Cart",
+      "description": "Auto-generated path: Shopping Cart",
+      "layersInvolved": [
+        "1_2"
+      ],
+      "avgCallsPerLayer": {
+        "1_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-1_3",
+      "name": "Checkout Flow",
+      "description": "Auto-generated path: Checkout Flow",
+      "layersInvolved": [
+        "1_3"
+      ],
+      "avgCallsPerLayer": {
+        "1_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2",
+      "name": "Mobile App",
+      "description": "Auto-generated path: Mobile App",
+      "layersInvolved": [
+        2
+      ],
+      "avgCallsPerLayer": {
+        "2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3",
+      "name": "Mobile App → API Gateway",
+      "description": "Auto-generated path: Mobile App → API Gateway",
+      "layersInvolved": [
+        2,
+        3
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-4",
+      "name": "Mobile App → API Gateway → Product Service",
+      "description": "Auto-generated path: Mobile App → API Gateway → Product Service",
+      "layersInvolved": [
+        2,
+        3,
+        4
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "4": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-4-9",
+      "name": "Mobile App → API Gateway → Product Service → Product Database",
+      "description": "Auto-generated path: Mobile App → API Gateway → Product Service → Product Database",
+      "layersInvolved": [
+        2,
+        3,
+        4,
+        9
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "9": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-4-11",
+      "name": "Mobile App → API Gateway → Product Service → Message Queue",
+      "description": "Auto-generated path: Mobile App → API Gateway → Product Service → Message Queue",
+      "layersInvolved": [
+        2,
+        3,
+        4,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-5",
+      "name": "Mobile App → API Gateway → Order Service",
+      "description": "Auto-generated path: Mobile App → API Gateway → Order Service",
+      "layersInvolved": [
+        2,
+        3,
+        5
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "5": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-5-6",
+      "name": "Mobile App → API Gateway → Order Service → Payment Service",
+      "description": "Auto-generated path: Mobile App → API Gateway → Order Service → Payment Service",
+      "layersInvolved": [
+        2,
+        3,
+        5,
+        6
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "5": 1,
+        "6": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-5-6-10",
+      "name": "Mobile App → API Gateway → Order Service → Payment Service → Order Database",
+      "description": "Auto-generated path: Mobile App → API Gateway → Order Service → Payment Service → Order Database",
+      "layersInvolved": [
+        2,
+        3,
+        5,
+        6,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "5": 1,
+        "6": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-5-6-11",
+      "name": "Mobile App → API Gateway → Order Service → Payment Service → Message Queue",
+      "description": "Auto-generated path: Mobile App → API Gateway → Order Service → Payment Service → Message Queue",
+      "layersInvolved": [
+        2,
+        3,
+        5,
+        6,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "5": 1,
+        "6": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-5-10",
+      "name": "Mobile App → API Gateway → Order Service → Order Database",
+      "description": "Auto-generated path: Mobile App → API Gateway → Order Service → Order Database",
+      "layersInvolved": [
+        2,
+        3,
+        5,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "5": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-5-11",
+      "name": "Mobile App → API Gateway → Order Service → Message Queue",
+      "description": "Auto-generated path: Mobile App → API Gateway → Order Service → Message Queue",
+      "layersInvolved": [
+        2,
+        3,
+        5,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "5": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-6",
+      "name": "Mobile App → API Gateway → Payment Service",
+      "description": "Auto-generated path: Mobile App → API Gateway → Payment Service",
+      "layersInvolved": [
+        2,
+        3,
+        6
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "6": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-6-10",
+      "name": "Mobile App → API Gateway → Payment Service → Order Database",
+      "description": "Auto-generated path: Mobile App → API Gateway → Payment Service → Order Database",
+      "layersInvolved": [
+        2,
+        3,
+        6,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "6": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-6-11",
+      "name": "Mobile App → API Gateway → Payment Service → Message Queue",
+      "description": "Auto-generated path: Mobile App → API Gateway → Payment Service → Message Queue",
+      "layersInvolved": [
+        2,
+        3,
+        6,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "6": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-7",
+      "name": "Mobile App → API Gateway → User Service",
+      "description": "Auto-generated path: Mobile App → API Gateway → User Service",
+      "layersInvolved": [
+        2,
+        3,
+        7
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "7": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-7-10",
+      "name": "Mobile App → API Gateway → User Service → Order Database",
+      "description": "Auto-generated path: Mobile App → API Gateway → User Service → Order Database",
+      "layersInvolved": [
+        2,
+        3,
+        7,
+        10
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "7": 1,
+        "10": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-8",
+      "name": "Mobile App → API Gateway → Notification Service",
+      "description": "Auto-generated path: Mobile App → API Gateway → Notification Service",
+      "layersInvolved": [
+        2,
+        3,
+        8
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "8": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2-3-8-11",
+      "name": "Mobile App → API Gateway → Notification Service → Message Queue",
+      "description": "Auto-generated path: Mobile App → API Gateway → Notification Service → Message Queue",
+      "layersInvolved": [
+        2,
+        3,
+        8,
+        11
+      ],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 1,
+        "8": 1,
+        "11": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2_1",
+      "name": "Native Modules",
+      "description": "Auto-generated path: Native Modules",
+      "layersInvolved": [
+        "2_1"
+      ],
+      "avgCallsPerLayer": {
+        "2_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-2_2",
+      "name": "Offline Mode",
+      "description": "Auto-generated path: Offline Mode",
+      "layersInvolved": [
+        "2_2"
+      ],
+      "avgCallsPerLayer": {
+        "2_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-3_1",
+      "name": "Auth Middleware",
+      "description": "Auto-generated path: Auth Middleware",
+      "layersInvolved": [
+        "3_1"
+      ],
+      "avgCallsPerLayer": {
+        "3_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-3_2",
+      "name": "Rate Limiter",
+      "description": "Auto-generated path: Rate Limiter",
+      "layersInvolved": [
+        "3_2"
+      ],
+      "avgCallsPerLayer": {
+        "3_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-3_3",
+      "name": "Request Logger",
+      "description": "Auto-generated path: Request Logger",
+      "layersInvolved": [
+        "3_3"
+      ],
+      "avgCallsPerLayer": {
+        "3_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-4_1",
+      "name": "Search Engine",
+      "description": "Auto-generated path: Search Engine",
+      "layersInvolved": [
+        "4_1"
+      ],
+      "avgCallsPerLayer": {
+        "4_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-4_2",
+      "name": "Image Processor",
+      "description": "Auto-generated path: Image Processor",
+      "layersInvolved": [
+        "4_2"
+      ],
+      "avgCallsPerLayer": {
+        "4_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-4_3",
+      "name": "Inventory Tracker",
+      "description": "Auto-generated path: Inventory Tracker",
+      "layersInvolved": [
+        "4_3"
+      ],
+      "avgCallsPerLayer": {
+        "4_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-5_1",
+      "name": "Order Validator",
+      "description": "Auto-generated path: Order Validator",
+      "layersInvolved": [
+        "5_1"
+      ],
+      "avgCallsPerLayer": {
+        "5_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-5_2",
+      "name": "Order State Machine",
+      "description": "Auto-generated path: Order State Machine",
+      "layersInvolved": [
+        "5_2"
+      ],
+      "avgCallsPerLayer": {
+        "5_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-5_3",
+      "name": "Notification Publisher",
+      "description": "Auto-generated path: Notification Publisher",
+      "layersInvolved": [
+        "5_3"
+      ],
+      "avgCallsPerLayer": {
+        "5_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-6_1",
+      "name": "Stripe Integration",
+      "description": "Auto-generated path: Stripe Integration",
+      "layersInvolved": [
+        "6_1"
+      ],
+      "avgCallsPerLayer": {
+        "6_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-6_2",
+      "name": "PayPal Integration",
+      "description": "Auto-generated path: PayPal Integration",
+      "layersInvolved": [
+        "6_2"
+      ],
+      "avgCallsPerLayer": {
+        "6_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-6_3",
+      "name": "Fraud Detection",
+      "description": "Auto-generated path: Fraud Detection",
+      "layersInvolved": [
+        "6_3"
+      ],
+      "avgCallsPerLayer": {
+        "6_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-7_1",
+      "name": "Auth Handler",
+      "description": "Auto-generated path: Auth Handler",
+      "layersInvolved": [
+        "7_1"
+      ],
+      "avgCallsPerLayer": {
+        "7_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-7_2",
+      "name": "Profile Manager",
+      "description": "Auto-generated path: Profile Manager",
+      "layersInvolved": [
+        "7_2"
+      ],
+      "avgCallsPerLayer": {
+        "7_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-7_3",
+      "name": "Session Store",
+      "description": "Auto-generated path: Session Store",
+      "layersInvolved": [
+        "7_3"
+      ],
+      "avgCallsPerLayer": {
+        "7_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-8_1",
+      "name": "Email Sender",
+      "description": "Auto-generated path: Email Sender",
+      "layersInvolved": [
+        "8_1"
+      ],
+      "avgCallsPerLayer": {
+        "8_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-8_2",
+      "name": "SMS Sender",
+      "description": "Auto-generated path: SMS Sender",
+      "layersInvolved": [
+        "8_2"
+      ],
+      "avgCallsPerLayer": {
+        "8_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-8_3",
+      "name": "Push Sender",
+      "description": "Auto-generated path: Push Sender",
+      "layersInvolved": [
+        "8_3"
+      ],
+      "avgCallsPerLayer": {
+        "8_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-11_1",
+      "name": "Order Events Topic",
+      "description": "Auto-generated path: Order Events Topic",
+      "layersInvolved": [
+        "11_1"
+      ],
+      "avgCallsPerLayer": {
+        "11_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-11_2",
+      "name": "Payment Events Topic",
+      "description": "Auto-generated path: Payment Events Topic",
+      "layersInvolved": [
+        "11_2"
+      ],
+      "avgCallsPerLayer": {
+        "11_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-11_3",
+      "name": "Notification Queue",
+      "description": "Auto-generated path: Notification Queue",
+      "layersInvolved": [
+        "11_3"
+      ],
+      "avgCallsPerLayer": {
+        "11_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-12",
+      "name": "Infrastructure",
+      "description": "Auto-generated path: Infrastructure",
+      "layersInvolved": [
+        12
+      ],
+      "avgCallsPerLayer": {
+        "12": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-12_1",
+      "name": "Container Orchestration",
+      "description": "Auto-generated path: Container Orchestration",
+      "layersInvolved": [
+        "12_1"
+      ],
+      "avgCallsPerLayer": {
+        "12_1": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-12_2",
+      "name": "Load Balancer",
+      "description": "Auto-generated path: Load Balancer",
+      "layersInvolved": [
+        "12_2"
+      ],
+      "avgCallsPerLayer": {
+        "12_2": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-12_3",
+      "name": "Monitoring",
+      "description": "Auto-generated path: Monitoring",
+      "layersInvolved": [
+        "12_3"
+      ],
+      "avgCallsPerLayer": {
+        "12_3": 1
+      },
+      "notes": "Generated from connection paths"
+    },
+    {
+      "id": "path-12_4",
+      "name": "CI/CD Pipeline",
+      "description": "Auto-generated path: CI/CD Pipeline",
+      "layersInvolved": [
+        "12_4"
+      ],
+      "avgCallsPerLayer": {
+        "12_4": 1
+      },
+      "notes": "Generated from connection paths"
+    }
+  ]
+}

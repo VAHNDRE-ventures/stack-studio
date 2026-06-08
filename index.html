@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StackStudio — Architecture Visualizer</title>
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+    <div class="toolbar">
+        <div class="brand">StackStudio</div>
+        <div class="menu">
+            <div class="menu-item" data-menu="file">
+                <span>File</span>
+                <div class="dropdown-menu">
+                    <div class="dropdown-item" onclick="newProject()">New</div>
+                    <div class="dropdown-item" onclick="importProject()">Open…</div>
+                    <div class="dropdown-item" onclick="exportProject()">Save (JSON)</div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item submenu-trigger">
+                        <span>Templates</span>
+                        <span class="submenu-caret">▶</span>
+                        <div class="submenu">
+                            <div class="dropdown-item" onclick="loadTemplate('threeLayer')">3-Tier Architecture</div>
+                            <div class="dropdown-item" onclick="loadTemplate('microservices')">Microservices</div>
+                            <div class="dropdown-item" onclick="loadTemplate('serverless')">Serverless</div>
+                            <div class="dropdown-item" onclick="loadTemplate('enterprise')">E-Commerce</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="menu-item" data-menu="edit">
+                <span>Edit</span>
+                <div class="dropdown-menu">
+                    <div class="dropdown-item" onclick="undo()">Undo <span class="dropdown-hint">Ctrl+Z</span></div>
+                    <div class="dropdown-item" onclick="redo()">Redo <span class="dropdown-hint">Ctrl+Y</span></div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="document.getElementById('add-layer-btn').click()">Add Layer</div>
+                    <div class="dropdown-item" onclick="deleteLayer()">Delete Layer</div>
+                    <div class="dropdown-item" onclick="addSubstackLayer()">Add Substack</div>
+                </div>
+            </div>
+            <div class="menu-item" data-menu="view">
+                <span>View</span>
+                <div class="dropdown-menu">
+                    <div class="dropdown-item" onclick="toggleView('stack')">Stack View</div>
+                    <div class="dropdown-item" onclick="toggleView('diagram')">Diagram View</div>
+                    <div class="dropdown-item" onclick="toggleView('actions')">Actions View</div>
+                    <div class="dropdown-item" onclick="toggleView('cost-dashboard')">Cost Dashboard</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Always-visible view switcher: the View menu was the only way to -->
+        <!-- change views, which buried the app's core capability. -->
+        <div class="view-switcher" id="view-switcher">
+            <button class="view-tab active" data-view="stack" onclick="toggleView('stack')">Stack</button>
+            <button class="view-tab" data-view="diagram" onclick="toggleView('diagram')">Diagram</button>
+            <button class="view-tab" data-view="actions" onclick="toggleView('actions')">Actions</button>
+            <button class="view-tab" data-view="cost-dashboard" onclick="toggleView('cost-dashboard')">Cost</button>
+        </div>
+    </div>
+
+    <div class="top-frame">
+        <div class="project-title-group">
+            <h1 id="project-title" onclick="editProjectName()">Sample Project</h1>
+            <button class="icon-btn" onclick="editProjectName()" title="Rename project">Rename</button>
+        </div>
+        <div class="stats">
+            <div class="stat"><span class="stat-label">Total</span> <span id="total-layers">0</span></div>
+            <div class="stat"><span class="stat-label">Active</span> <span id="active-layers">0</span></div>
+            <div class="stat"><span class="stat-label">Inactive</span> <span id="inactive-layers">0</span></div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="stack-view" class="left-frame">
+            <div class="stack-container" id="stack-container">
+                <!-- Layers rendered dynamically -->
+            </div>
+            <div class="controls">
+                <div class="controls-row">
+                    <div class="nav-instructions">
+                        <span id="nav-instructions">↑↓ Navigate • → Enter Substack • ← Back • Scroll Wheel</span>
+                    </div>
+                    <div class="controls-actions">
+                        <label class="control-label" for="sort-select">Sort by</label>
+                        <select id="sort-select" class="control-select">
+                            <option value="manual">Manual Order</option>
+                            <option value="name">Name (A-Z)</option>
+                            <option value="type">Type</option>
+                            <option value="status">Status</option>
+                        </select>
+                        <button id="add-layer-btn">+ Add Layer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="diagram-view" class="diagram-frame" style="display: none;">
+            <canvas id="diagram-canvas"></canvas>
+        </div>
+
+        <div id="actions-view" class="scroll-frame" style="display: none;">
+            <!-- Actions rendered dynamically -->
+        </div>
+
+        <div id="cost-dashboard-view" class="scroll-frame" style="display: none;">
+            <!-- Cost dashboard rendered dynamically -->
+        </div>
+
+        <div class="right-frame" id="details-panel">
+            <div id="layer-details" class="layer-details">
+                <p class="no-selection">Select a layer to view details</p>
+            </div>
+        </div>
+        <div class="panel-toggle" id="panel-toggle" onclick="toggleDetailsPanel()">◀</div>
+    </div>
+
+    <script src="static/js/utils.js"></script>
+    <script src="static/js/data.js"></script>
+    <script src="static/js/validation.js"></script>
+    <script src="static/js/views/stackView.js"></script>
+    <script src="static/js/views/detailsView.js"></script>
+    <script src="static/js/views/actionsView.js"></script>
+    <script src="static/js/views/costDashboardView.js"></script>
+    <script src="static/js/app.js"></script>
+    <script src="static/js/diagram.js"></script>
+</body>
+</html>

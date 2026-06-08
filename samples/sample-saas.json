@@ -1,0 +1,320 @@
+{
+  "name": "Acme SaaS Platform",
+  "layers": [
+    {
+      "id": 1001,
+      "name": "Web App",
+      "type": "Frontend",
+      "status": "Active",
+      "description": "Single-page application served to end users. Talks to the API gateway over HTTPS.",
+      "technology": "React, TypeScript, Vite",
+      "responsibilities": "Render UI, manage client state, call the API.",
+      "connections": [
+        { "targetId": 1002, "type": "HTTP" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 20,
+        "fixedCostDescription": "CDN + static hosting",
+        "variableCost": 0,
+        "variableUnit": "per-request",
+        "notes": "Static assets on a CDN."
+      },
+      "substacks": [
+        {
+          "id": "1001_1",
+          "name": "Design System",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Shared component library and tokens.",
+          "technology": "Storybook",
+          "responsibilities": "Reusable UI primitives.",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "1001_2",
+          "name": "State Store",
+          "type": "Frontend",
+          "status": "Active",
+          "description": "Client-side application state.",
+          "technology": "Zustand",
+          "responsibilities": "Hold session and cache state.",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "name": "API Gateway",
+      "type": "API",
+      "status": "Active",
+      "description": "Edge entry point. Handles auth, routing, and rate limiting before forwarding to services.",
+      "technology": "Cloudflare Workers",
+      "responsibilities": "AuthN/Z, routing, rate limiting, request validation.",
+      "connections": [
+        { "targetId": 1003, "type": "HTTP" },
+        { "targetId": 1004, "type": "Event" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 5,
+        "fixedCostDescription": "Workers paid plan",
+        "variableCost": 0.0000005,
+        "variableUnit": "per-request",
+        "notes": ""
+      },
+      "substacks": [
+        {
+          "id": "1002_1",
+          "name": "Auth Middleware",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Validates JWTs and attaches the user context. Calls the user service to provision new accounts.",
+          "technology": "JOSE",
+          "responsibilities": "Verify tokens, provision users.",
+          "connections": [
+            { "targetId": "1003_2", "type": "HTTP" }
+          ],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "1002_2",
+          "name": "Rate Limiter",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Per-key counters backed by the KV cache.",
+          "technology": "Durable Objects",
+          "responsibilities": "Throttle abusive clients.",
+          "connections": [
+            { "targetId": "1005_1", "type": "Cache" }
+          ],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": 1003,
+      "name": "Core Service",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Primary business logic service. Owns the domain model and persists to the database.",
+      "technology": "Node.js, Fastify",
+      "responsibilities": "Apply business rules, read/write the database, emit domain events.",
+      "connections": [
+        { "targetId": 1006, "type": "Database" },
+        { "targetId": 1004, "type": "Message" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 120,
+        "fixedCostDescription": "Container compute",
+        "variableCost": 0,
+        "variableUnit": "per-request",
+        "notes": ""
+      },
+      "substacks": [
+        {
+          "id": "1003_1",
+          "name": "Billing Module",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Subscription and invoice logic.",
+          "technology": "Stripe SDK",
+          "responsibilities": "Manage plans, proration, invoices.",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "1003_2",
+          "name": "User Service",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Account lifecycle and profile data. Reads and writes the users table.",
+          "technology": "Node.js",
+          "responsibilities": "Provision, update, and look up users.",
+          "connections": [
+            { "targetId": "1006_1", "type": "Database" }
+          ],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": 1004,
+      "name": "Event Bus",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Asynchronous message backbone connecting services to background workers.",
+      "technology": "Cloudflare Queues",
+      "responsibilities": "Decouple producers from consumers, buffer spikes, retry on failure.",
+      "connections": [
+        { "targetId": 1007, "type": "Async" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "variableCost": 0.0000004,
+        "variableUnit": "per-request",
+        "notes": "Billed per message operation."
+      },
+      "substacks": []
+    },
+    {
+      "id": 1005,
+      "name": "Edge Cache",
+      "type": "Core",
+      "status": "Active",
+      "description": "Low-latency key/value store for sessions, counters, and idempotency keys.",
+      "technology": "Cloudflare KV",
+      "responsibilities": "Cache hot data, hold rate-limit counters and idempotency keys.",
+      "connections": [],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "variableCost": 0.0000005,
+        "variableUnit": "per-read",
+        "notes": ""
+      },
+      "substacks": [
+        {
+          "id": "1005_1",
+          "name": "Counters",
+          "type": "Database",
+          "status": "Active",
+          "description": "Rate-limit and usage counters.",
+          "technology": "KV",
+          "responsibilities": "Hold short-lived numeric counters.",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": 1006,
+      "name": "Database",
+      "type": "Database",
+      "status": "Active",
+      "description": "Primary relational store of record for the platform.",
+      "technology": "PostgreSQL 16",
+      "responsibilities": "Durable persistence of the domain model.",
+      "connections": [],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 90,
+        "fixedCostDescription": "Managed instance + storage",
+        "variableCost": 0,
+        "variableUnit": "per-write",
+        "notes": ""
+      },
+      "substacks": [
+        {
+          "id": "1006_1",
+          "name": "users",
+          "type": "Other",
+          "status": "Active",
+          "description": "User accounts, profiles, and auth subject IDs.",
+          "technology": "",
+          "responsibilities": "",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        },
+        {
+          "id": "1006_2",
+          "name": "subscriptions",
+          "type": "Other",
+          "status": "Active",
+          "description": "Plan, status, and billing references per account.",
+          "technology": "",
+          "responsibilities": "",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        }
+      ]
+    },
+    {
+      "id": 1007,
+      "name": "Worker Pool",
+      "type": "DevOps",
+      "status": "Active",
+      "description": "Background consumers that process queued jobs: email, exports, and scheduled tasks.",
+      "technology": "Cloudflare Workers (consumers)",
+      "responsibilities": "Process async jobs, send transactional email, run cron tasks.",
+      "connections": [
+        { "targetId": 1006, "type": "Database" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 0,
+        "fixedCostDescription": "",
+        "variableCost": 0.0000006,
+        "variableUnit": "per-request",
+        "notes": ""
+      },
+      "substacks": [
+        {
+          "id": "1007_1",
+          "name": "Email Sender",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Sends transactional email for queued notification jobs.",
+          "technology": "Resend",
+          "responsibilities": "Render and deliver transactional email.",
+          "connections": [],
+          "dependencies": [],
+          "visible": true,
+          "locked": false
+        }
+      ]
+    }
+  ]
+}

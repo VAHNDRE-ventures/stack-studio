@@ -1,0 +1,96 @@
+{
+  "name": "Three-Tier Architecture",
+  "layers": [
+    {
+      "id": 1,
+      "name": "Web Frontend",
+      "type": "Frontend",
+      "status": "Active",
+      "description": "User interface",
+      "technology": "React",
+      "responsibilities": "Display UI",
+      "connections": [2],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 75,
+        "variableCost": 0,
+        "variableUnit": "per-request",
+        "notes": "CDN + hosting"
+      },
+      "substacks": []
+    },
+    {
+      "id": 2,
+      "name": "Application Server",
+      "type": "Backend",
+      "status": "Active",
+      "description": "Business logic",
+      "technology": "Java Spring Boot",
+      "responsibilities": "Process requests",
+      "connections": [3],
+      "dependencies": [1],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 350,
+        "variableCost": 0,
+        "variableUnit": "per-request",
+        "notes": "Application server"
+      },
+      "substacks": []
+    },
+    {
+      "id": 3,
+      "name": "Database",
+      "type": "Database",
+      "status": "Active",
+      "description": "Data storage",
+      "technology": "MySQL",
+      "responsibilities": "Persist data",
+      "connections": [],
+      "dependencies": [2],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 200,
+        "variableCost": 0.00008,
+        "variableUnit": "per-gb-month",
+        "notes": "Database instance"
+      },
+      "substacks": []
+    }
+  ],
+  "usePaths": [
+    {
+      "id": "user-request",
+      "name": "User Request",
+      "description": "Standard user request flow",
+      "layersInvolved": [1, 2, 3],
+      "avgCallsPerLayer": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      },
+      "notes": "Request from frontend through app server to database"
+    },
+    {
+      "id": "bulk-operation",
+      "name": "Bulk Operation",
+      "description": "Batch processing",
+      "layersInvolved": [2, 3],
+      "avgCallsPerLayer": {
+        "2": 1,
+        "3": 5
+      },
+      "notes": "Multiple database queries from app server"
+    }
+  ]
+}

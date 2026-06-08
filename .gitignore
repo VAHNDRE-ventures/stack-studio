@@ -1,0 +1,8 @@
+# Scratch / local notes
+Notes
+*.local.md
+debug.log
+
+# Test harness artifacts
+_smoke_harness.html
+samples/_*.html
