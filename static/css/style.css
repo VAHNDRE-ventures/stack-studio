@@ -558,21 +558,30 @@ body {
     margin: 0 -24px 16px -24px;
     padding: 0 24px;
     flex-shrink: 0;
+    /* On a narrow sidebar the four tabs would overflow the panel; allow the
+       row to scroll horizontally instead of spilling past the edge. */
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.detail-tabs::-webkit-scrollbar {
+    height: 0;
 }
 
 .detail-tab {
     background: transparent;
     border: none;
     color: #94a3b8;
-    padding: 12px 16px;
+    padding: 12px 13px;
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    transition: all 0.2s;
+    transition: color 0.2s, background 0.2s;
     border-bottom: 2px solid transparent;
     white-space: nowrap;
     position: relative;
     bottom: -1px;
+    flex-shrink: 0;
 }
 
 .detail-tab:hover {
