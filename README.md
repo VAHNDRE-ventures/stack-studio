@@ -93,6 +93,25 @@ sample in `samples/sample-saas.json` is used by the test suite.
 | Drag canvas | Pan (Diagram) |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
 
+## Actions
+
+An **action** is a named operation traced through the stack — a request path
+like *User Login* or *Checkout Flow*. Actions answer two questions a static
+diagram can't:
+
+1. **What does this operation touch?** Each action lists the layers it hits in
+   order, so a path is documentation a new engineer can read.
+2. **What does it cost?** Combining each layer's variable cost with how many
+   times the action calls it (× monthly volume) turns the per-layer Cost view
+   into real cost-per-operation math.
+
+Selecting an action highlights its path on the Diagram view (the rest of the
+stack dims), so you can see the operation flow through the architecture.
+
+Actions are stored on the project under `usePaths` and are saved/exported with
+everything else. Assembly edits (adding a layer, changing call counts)
+auto-save — no separate Save step required.
+
 ## Architecture
 
 ```
@@ -124,6 +143,7 @@ node samples/validate.mjs        # data layer: migration, connections, escaping
 node samples/check-wiring.mjs    # static: no dup functions, handlers resolve
 node samples/smoke.mjs           # headless Chrome: boots, loads sample, all views
 node samples/check-diagram.mjs   # headless: layout, edges, drag persistence
+node samples/check-actions.mjs   # headless: action persistence + diagram path highlight
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 

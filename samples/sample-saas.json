@@ -316,5 +316,34 @@
         }
       ]
     }
+  ],
+  "usePaths": [
+    {
+      "id": "action-1",
+      "name": "User Login",
+      "description": "A returning user authenticates. The app calls the gateway, which validates credentials via the core service and reads the users table.",
+      "layersInvolved": [1001, 1002, 1003, 1006],
+      "avgCallsPerLayer": { "1001": 1, "1002": 1, "1003": 1, "1006": 1 },
+      "notes": "Cheap, high-frequency. Mostly gateway + a single DB read.",
+      "source": "manual"
+    },
+    {
+      "id": "action-2",
+      "name": "Checkout Flow",
+      "description": "User completes a purchase. Hits the gateway, runs billing logic in the core service, writes to the database, and emits an event for async fulfillment.",
+      "layersInvolved": [1001, 1002, 1003, 1006, 1004],
+      "avgCallsPerLayer": { "1001": 1, "1002": 2, "1003": 3, "1006": 4, "1004": 1 },
+      "notes": "Multiple core-service calls (validate, charge, confirm) and several DB writes.",
+      "source": "manual"
+    },
+    {
+      "id": "action-3",
+      "name": "Async Email Job",
+      "description": "A queued notification is processed off the request path. The event bus hands the job to the worker pool, which reads the database and sends mail.",
+      "layersInvolved": [1004, 1007, 1006],
+      "avgCallsPerLayer": { "1004": 1, "1007": 1, "1006": 1 },
+      "notes": "Runs entirely in the background; no user waiting.",
+      "source": "manual"
+    }
   ]
 }
