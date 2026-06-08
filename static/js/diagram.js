@@ -1207,7 +1207,15 @@ function renderDiagramWithHover() {
                             connObj.targetId == hoveredNodeId;
                         isFaded = !connectionInvolvesHoveredNode;
                     }
-                    
+
+                    // When an action path is highlighted, fade connections whose
+                    // endpoints aren't both on the path.
+                    if (!isFaded && typeof highlightedActionPath !== 'undefined' && highlightedActionPath) {
+                        const ids = highlightedActionPath.layerIds;
+                        const onPath = ids.has(String(connObj.sourceId)) && ids.has(String(connObj.targetId));
+                        isFaded = !onPath;
+                    }
+
                     drawConnection(x1, y1, x2, y2, isSubstackConnection || isTargetSubstack, connectionType, isHovered, isFaded);
                 }
             });
@@ -1233,13 +1241,44 @@ function renderDiagramWithHover() {
     });
     
     // Draw nodes
+    const actionPath = (typeof highlightedActionPath !== 'undefined') ? highlightedActionPath : null;
     allLayers.forEach(layer => {
         if (nodePositions[layer.id]) {
             const isSelected = (!inSubstack && project.layers[selectedLayerIndex]?.id === layer.id) ||
                              (inSubstack && project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]?.id === layer.id);
+            // When an action path is highlighted, dim nodes not on the path.
+            let dim = false;
+            if (actionPath) {
+                dim = !actionPath.layerIds.has(String(layer.id));
+            }
+            ctx.globalAlpha = dim ? 0.25 : 1;
             drawNode(layer, nodePositions[layer.id].x, nodePositions[layer.id].y, isSelected);
+            ctx.globalAlpha = 1;
         }
     });
-    
+
     ctx.restore();
+
+    // Action-path banner (drawn in screen space, after restore).
+    if (actionPath) {
+        const label = `Action path: ${actionPath.name}`;
+        ctx.save();
+        ctx.font = '600 13px sans-serif';
+        const tw = ctx.measureText(label).width;
+        const bw = tw + 28;
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1;
+        const bx = 16, by = 16, bh = 30;
+        if (ctx.roundRect) {
+            ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
+        } else {
+            ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+        }
+        ctx.fillStyle = '#bfdbfe';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, bx + 14, by + bh / 2);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+    }
 }

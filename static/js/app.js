@@ -5,6 +5,7 @@ let selectedSubstackIndex = 0;
 let undoStack = [];
 let redoStack = [];
 let selectedActionId = null;  // Track selected action in Actions View
+let highlightedActionPath = null;  // {layerIds:Set, name} for diagram path highlight
 let actionsViewCollapsed = false;  // Track if Actions section is collapsed
 let pathsViewCollapsed = false;  // Track if Paths section is collapsed
 let currentView = 'stack';  // Track current view (stack, diagram, actions, cost-dashboard)
@@ -100,21 +101,30 @@ function redo() {
 function toggleDetailsPanel() {
     const panel = document.getElementById('details-panel');
     const toggle = document.getElementById('panel-toggle');
-    panel.classList.toggle('collapsed');
-    toggle.textContent = panel.classList.contains('collapsed') ? '▶' : '◀';
-    toggle.style.right = panel.classList.contains('collapsed') ? '0' : '500px';
-    
-    // Resize canvas when panel toggles
+    const collapsed = panel.classList.toggle('collapsed');
+    // The handle's position is driven by CSS (.right-frame.collapsed ~ .panel-toggle).
+    toggle.textContent = collapsed ? '▶' : '◀';
+
+    // Resize canvas when the panel toggles (stack carousel + diagram both
+    // depend on the reclaimed width).
     setTimeout(() => {
         if (currentView === 'diagram' && canvas) {
             resizeCanvas();
+        } else if (currentView === 'stack') {
+            selectLayer(inSubstack ? selectedSubstackIndex : selectedLayerIndex, true);
         }
-    }, 300);
+    }, 320);
 }
 
 // Toggle between different views (stack, diagram, actions, cost-dashboard)
 function toggleView(view) {
     currentView = view;
+
+    // The action path highlight only makes sense while working with actions.
+    // Clear it when navigating elsewhere (diagram clears it on its own draw).
+    if (view !== 'actions' && view !== 'diagram') {
+        highlightedActionPath = null;
+    }
 
     // Keep the always-visible view switcher tabs in sync.
     document.querySelectorAll('.view-tab').forEach(tab => {
@@ -155,6 +165,7 @@ function toggleView(view) {
             if (project.usePaths && project.usePaths.length > 0) {
                 const firstAction = project.usePaths[0];
                 selectedActionId = firstAction.id;
+                setHighlightedActionPath(firstAction);
                 renderActionAssemblyPanel(firstAction);
             }
             break;
@@ -663,6 +674,25 @@ function getAllLayers() {
         }
     });
     return layers;
+}
+
+/**
+ * Set (or clear) the action path highlighted on the diagram. Pass an action
+ * object to highlight its layers, or null to clear. Re-renders the diagram if
+ * it's the active view so the highlight reflects immediately.
+ */
+function setHighlightedActionPath(action) {
+    if (action && action.layersInvolved && action.layersInvolved.length) {
+        highlightedActionPath = {
+            name: action.name,
+            layerIds: new Set(action.layersInvolved.map(id => String(id)))
+        };
+    } else {
+        highlightedActionPath = null;
+    }
+    if (currentView === 'diagram' && typeof renderDiagram === 'function') {
+        renderDiagram();
+    }
 }
 
 // Generate intelligent, semantic names for flows based on layers involved
@@ -1544,7 +1574,16 @@ function renderActionsListContent(container) {
         `;
         empty.innerHTML = `
             <div style="font-size: 15px; margin-bottom: 12px; color: #94a3b8;">No actions defined yet</div>
-            <div style="font-size: 13px; line-height: 1.6;">Click <strong>"New Action"</strong> to create your first user journey<br>or <strong>"Import from Connections"</strong> to auto-generate from your diagram</div>
+            <div style="font-size: 13px; line-height: 1.7; max-width: 520px; margin: 0 auto 20px;">
+                An <strong>action</strong> is a named operation traced through your stack —
+                a request path like <em>"User Login"</em> or <em>"Checkout Flow"</em>.
+                Defining one shows <strong>which layers it touches</strong> and lets the
+                Cost view compute <strong>what that operation costs per use and at scale</strong>.
+            </div>
+            <div style="font-size: 13px; line-height: 1.6; color: #94a3b8;">
+                Click <strong>"+ New Action"</strong> to build one by hand,
+                or <strong>"Import from Connections"</strong> to auto-generate paths from your diagram.
+            </div>
         `;
         container.appendChild(empty);
         return;
@@ -2002,6 +2041,7 @@ function editAction(pathId) {
     if (!path) return;
     
     selectedActionId = pathId;
+    setHighlightedActionPath(path);
     renderActionsView();
     renderActionAssemblyPanel(path);
 }
@@ -2688,8 +2728,10 @@ function addLayerToPath(path, layerId) {
     if (!path.layersInvolved.includes(layerId)) {
         path.layersInvolved.push(layerId);
         path.avgCallsPerLayer[layerId] = 1;
+        saveProject();  // assembly edits must persist, not just name/description
         populateAssemblyLayers(path, getAllLayers());
         populateAssemblyPath(path);
+        populateActionCostBreakdown(path, getAllLayers());
     }
 }
 
@@ -2699,8 +2741,10 @@ function addLayerToPath(path, layerId) {
 function removeLayerFromPath(path, layerId) {
     path.layersInvolved = path.layersInvolved.filter(id => id !== layerId);
     delete path.avgCallsPerLayer[layerId];
+    saveProject();
     populateAssemblyLayers(path, getAllLayers());
     populateAssemblyPath(path);
+    populateActionCostBreakdown(path, getAllLayers());
 }
 
 /**
@@ -2710,6 +2754,7 @@ function updateLayerCalls(pathId, layerId, value) {
     const path = project.usePaths.find(p => p.id === pathId);
     if (path) {
         path.avgCallsPerLayer[layerId] = parseInt(value) || 1;
+        saveProject();
     }
 }
 
@@ -2734,6 +2779,7 @@ function saveActionPath() {
     saveState();
     saveProject();
     selectedActionId = null;
+    setHighlightedActionPath(null);
     renderActionsView();
     renderLayerDetails(project.layers[selectedLayerIndex]);
 }
@@ -2743,6 +2789,7 @@ function saveActionPath() {
  */
 function clearActionSelection() {
     selectedActionId = null;
+    setHighlightedActionPath(null);
     renderActionsView();
     renderLayerDetails(project.layers[selectedLayerIndex]);
 }
