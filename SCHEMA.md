@@ -27,7 +27,7 @@ Open imports it. Older documents are upgraded automatically on load (see
 | Field | Type | Notes |
 |-------|------|-------|
 | `name` | string | Shown in the title bar; used for the export filename. |
-| `avgTransactionValue` | number? | Average transaction value used to evaluate percentage-of-value costs (Gap 4). Defaults to `50`. Editable in the Cost dashboard. |
+| `avgTransactionValue` | number? | Average transaction value used to evaluate percentage-of-value costs. Defaults to `50`. Editable in the Cost dashboard. |
 | `layers` | Layer[] | The stack's top-level nodes. |
 | `usePaths` | Action[]? | Named operations traced through the stack. May be absent. |
 | `diagramPositions` | object? | `{ nodeId: {x, y} }` — manual node positions from the diagram, so a dragged layout survives reload. Keys are stringified node ids. |
@@ -56,7 +56,7 @@ breadcrumb.
   "visible": true,                  // boolean?
   "locked": false,                  // boolean?
   "costModel": CostModel,           // CostModel?
-  "substacks": [ Substack ]         // Substack[]? — top-level layers only
+  "substacks": [ Substack ]         // Substack[]? — recursive, any depth
 }
 ```
 
@@ -128,7 +128,7 @@ An outgoing edge from a node. Stored as an object (the canonical form).
 |-------|------|-------|
 | `targetId` | number \| string | Must match a node `id` anywhere in the project (layer or substack). |
 | `type` | ConnectionType | Transport/semantics; drives line style + label. |
-| `label` | string? | Free-text payload description (Gap 6). Rendered on the diagram edge (brighter than the type label) and in the hover tooltip. |
+| `label` | string? | Free-text payload description ("what flows here"). Rendered on the diagram edge (brighter than the type label) and in the hover tooltip. |
 
 ### Connection types
 
@@ -164,8 +164,8 @@ Attached to a layer or substack. All fields optional; absent = free.
 | `fixedCostDescription` | string? | Human note on what the fixed cost covers. |
 | `variableCost` | number | Per-use cost, in `currency`, at the `variableUnit`. |
 | `variableUnit` | VariableUnit | Unit basis (see below). |
-| `percentageCost` | number? | **Gap 4.** Percent of transaction value (e.g. `2.9` = 2.9%). Evaluated against the project `avgTransactionValue`. |
-| `percentageFixed` | number? | **Gap 4.** Flat per-transaction fee added to the percentage (e.g. `0.30`). |
+| `percentageCost` | number? | Percent of transaction value (e.g. `2.9` = 2.9%). Evaluated against the project `avgTransactionValue`. |
+| `percentageFixed` | number? | Flat per-transaction fee added to the percentage (e.g. `0.30`). |
 | `notes` | string? | Free text. |
 
 **Percentage cost evaluation** (`evaluatePercentageCost`):
@@ -201,19 +201,19 @@ Lives in the project's `usePaths` array.
     "1001": 1, "1002": 2
   },
   "notes": "...",                   // string?
-  "source": "manual"                // "manual" | "imported"?
+  "source": "manual"                // string? — "imported" groups separately; any other value is treated as manual/authored
 }
 ```
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | string | Unique within `usePaths`. |
-| `name` | string | Shown in the Actions list and the diagram path banner. |
+| `name` | string | Shown in the Actions list and the diagram action-path dropdown. |
 | `description` | string? | What the operation does. |
 | `layersInvolved` | (number\|string)[] | Ordered node ids the operation passes through. Selecting the action highlights this path on the diagram. |
-| `avgCallsPerLayer` | object | `{ nodeId: callsPerRun }` — feeds cost-per-operation math. |
+| `avgCallsPerLayer` | object? | `{ nodeId: callsPerRun }` — feeds cost-per-operation math. Normalized on load (1 per involved layer) if absent. |
 | `notes` | string? | Free text. |
-| `source` | enum? | `manual` (hand-built) or `imported` (generated from connections). |
+| `source` | string? | Grouping hint for the Actions list. `imported` (generated from connections) gets its own section; **any other value** (`manual`, `curated`, absent, …) is shown as manual/authored. |
 
 > A richer ordered-`steps[]` model (each step naming the connection it
 > traverses) is migrated toward internally but the editing UI still uses
@@ -229,7 +229,10 @@ preserves unknown-but-known fields:
 1. **Connections** → canonical `{ targetId, type, label? }` objects. Bare-id
    arrays and the legacy `connectionTypes` side-table are converted; `label`
    is preserved.
-2. **Use paths** → ensures the step/cost fields exist.
+2. **Use paths** → ensures `layersInvolved` is an array and `avgCallsPerLayer`
+   exists (defaulting to 1 call per involved layer), and populates the
+   internal `steps`/cost fields. Authored actions that only specify
+   `layersInvolved` (any `source`) load correctly.
 3. **Cost models** → legacy `per-1M-*` units converted to per-use;
    `percentageCost` / `percentageFixed` / `fixedCostDescription` preserved.
 4. **Project** → ensures `avgTransactionValue` exists (default 50).

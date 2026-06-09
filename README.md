@@ -12,11 +12,12 @@ HTML5 Canvas — no build step, no framework, no server.
 
 It offers four synchronized views over a single project model:
 
-- **Stack** — a high-level rotary carousel of layers, with substacks nested
-  inside each layer.
-- **Diagram** — a draggable C4-style architecture diagram with typed,
-  labeled connections.
-- **Actions** — user-flow / request-path tracking across layers.
+- **Stack** — a rotary carousel of layers; drill into substacks (nested to any
+  depth) with a breadcrumb in the details panel.
+- **Diagram** — a draggable C4-style architecture diagram with typed, labeled
+  connections, recursive substack grouping, snap-to-grid, and action-path
+  highlighting.
+- **Actions** — named request paths traced across layers, with cost-per-operation.
 - **Cost** — a roll-up of per-layer fixed, variable, and percentage-of-value
   costs, with a Current/Projected scope toggle and a per-transaction view.
 
@@ -88,7 +89,8 @@ the migration rules.
 
 - **Add / edit layers** in the Stack view or via the details panel on the
   right. The panel has Properties, Connections, Cost and Substacks tabs; the
-  open tab is preserved as you edit.
+  open tab is preserved as you edit. The panel collapses (handle on its edge)
+  and is horizontally resizable (drag its left edge).
 - **Diagram view**: drag nodes to reposition them (positions are saved with
   the project), drag the canvas to pan, scroll to zoom. The toolbar has zoom,
   Fit, and Auto-arrange (↻) controls. A **Snap to grid** toggle (top-left, with
@@ -194,6 +196,34 @@ This fork prioritized correctness on real stacks over new features:
 - **Cleanup**: removed the non-functional Flask stub, the unused `config.js`,
   the committed `debug.log`, and inline-styled menus (now CSS classes).
 - Added on-canvas connection-type labels and an Auto-arrange control.
+
+### Since the initial fork
+
+Feature and correctness work layered on after the rework, each with a
+headless test under `samples/`:
+
+- **n-level substacks.** The data model, cost rollup, diagram layout
+  (recursive grouping boxes, content-aware column spacing, row wrapping for
+  wide stacks) and details-panel navigation (drill-in with a breadcrumb) all
+  handle arbitrary nesting depth.
+- **Lifecycle status + node types.** `Planned`/`Proposed` statuses (dashed,
+  excluded from current-state cost) and `Actor`/`External` node types (person
+  glyph, excluded from cost).
+- **Connection payload labels.** Optional per-edge "what flows here" label,
+  rendered on the edge and in the tooltip.
+- **Cost model.** Percentage-of-transaction-value costs (`percentageCost` +
+  `percentageFixed` against a project `avgTransactionValue`) and a
+  Current/Projected scope toggle that includes or excludes future nodes.
+- **Actions.** Defined purpose (what an operation touches + costs), assembly
+  edits auto-save, the diagram shows an action-path **dropdown** to switch or
+  clear the highlighted path, and the list renders actions of any `source`.
+- **Diagram UX.** Snap-to-grid (5–20px) with a grid overlay; edge-clipped
+  connection routing.
+- **Sidebar.** Horizontally resizable (persisted), collapse handle glued to
+  the panel edge, responsive width.
+- **Stack view fixes.** No ghost-card flash on entry, word-boundary wrapping
+  for long names, no name/cost overlap, plain-decimal cost formatting (no
+  `3e-7`).
 
 ## License
 
