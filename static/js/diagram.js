@@ -26,6 +26,33 @@ let dragOffsetY = 0;
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 120;
 
+// Snap-to-grid for node dragging. When enabled, dragged node centers snap to a
+// grid of `snapGridSize` world units. Persisted per-browser.
+let snapToGrid = false;
+let snapGridSize = 5;  // world units; user-selectable (2-5)
+
+function loadSnapPrefs() {
+    try {
+        const s = localStorage.getItem('ztack_snap');
+        if (s !== null) snapToGrid = s === '1';
+        const g = parseInt(localStorage.getItem('ztack_snap_size') || '', 10);
+        if (!isNaN(g) && g >= 1) snapGridSize = g;
+    } catch (e) {}
+}
+
+function saveSnapPrefs() {
+    try {
+        localStorage.setItem('ztack_snap', snapToGrid ? '1' : '0');
+        localStorage.setItem('ztack_snap_size', String(snapGridSize));
+    } catch (e) {}
+}
+
+// Round a world coordinate to the snap grid (no-op when snapping is off).
+function snapCoord(v) {
+    if (!snapToGrid || !(snapGridSize > 0)) return v;
+    return Math.round(v / snapGridSize) * snapGridSize;
+}
+
 let diagramInitialized = false;
 
 function initDiagramView() {
@@ -70,6 +97,8 @@ function resizeCanvas() {
 function addZoomControls() {
     const container = document.getElementById('diagram-view');
     if (document.getElementById('zoom-controls')) return;
+
+    loadSnapPrefs();
     
     const controls = document.createElement('div');
     controls.id = 'zoom-controls';
@@ -82,6 +111,39 @@ function addZoomControls() {
         <button onclick="refreshDiagramLayout(true)" title="Auto-arrange nodes" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">\u21BB</button>
     `;
     container.appendChild(controls);
+
+    // Snap-to-grid control: a toggle plus a grid-size picker (2-5px).
+    if (!document.getElementById('snap-controls')) {
+        const snap = document.createElement('div');
+        snap.id = 'snap-controls';
+        snap.style.cssText = 'position: absolute; top: 60px; left: 16px; display: flex; align-items: center; gap: 8px; background: rgba(15,23,42,0.92); border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; z-index: 100; font-size: 12px; color: #94a3b8;';
+        snap.innerHTML = `
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="snap-toggle" ${snapToGrid ? 'checked' : ''}>
+                <span>Snap to grid</span>
+            </label>
+            <select id="snap-size" title="Grid size" style="background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; padding:3px 6px; font-size:12px; cursor:pointer;">
+                ${[2,3,4,5].map(n => `<option value="${n}" ${snapGridSize===n?'selected':''}>${n}px</option>`).join('')}
+            </select>
+        `;
+        container.appendChild(snap);
+
+        const toggle = snap.querySelector('#snap-toggle');
+        const sizeSel = snap.querySelector('#snap-size');
+        toggle.addEventListener('change', () => {
+            snapToGrid = toggle.checked;
+            saveSnapPrefs();
+            // Re-snap all existing positions so the grid applies immediately.
+            if (snapToGrid) snapAllNodePositions();
+            renderDiagram();
+        });
+        sizeSel.addEventListener('change', () => {
+            snapGridSize = parseInt(sizeSel.value, 10) || 5;
+            saveSnapPrefs();
+            if (snapToGrid) { snapAllNodePositions(); }
+            renderDiagram();
+        });
+    }
 
     // A subtle, dismissable hint that nodes are draggable (the original UI
     // gave no indication, and the README's drag claim was never wired up).
@@ -386,6 +448,55 @@ function persistNodePositions() {
         project.diagramPositions[id] = { x: pos.x, y: pos.y };
     });
     if (typeof saveProject === 'function') saveProject();
+}
+
+/**
+ * Snap every node's current position to the grid and persist. Called when the
+ * user turns snapping on or changes the grid size, so existing nodes align
+ * immediately rather than only on the next drag.
+ */
+function snapAllNodePositions() {
+    Object.keys(nodePositions).forEach(id => {
+        const pos = nodePositions[id];
+        pos.x = snapCoord(pos.x);
+        pos.y = snapCoord(pos.y);
+    });
+    persistNodePositions();
+}
+
+/**
+ * Draw the snap grid over the visible world region. The raw snap size (2-5px)
+ * is too fine to draw directly, so we step it up to a multiple that's at least
+ * ~14 screen px apart, keeping it legible and cheap at any zoom.
+ */
+function drawSnapGrid() {
+    if (!canvas) return;
+    // Choose a spacing that is a multiple of snapGridSize and >= ~14px on screen.
+    const minScreenPx = 14;
+    let step = snapGridSize;
+    if (step * zoomLevel < minScreenPx) {
+        step = snapGridSize * Math.ceil(minScreenPx / (snapGridSize * zoomLevel));
+    }
+    // Visible world bounds (inverse of translate+scale).
+    const x0 = -panX / zoomLevel;
+    const y0 = -panY / zoomLevel;
+    const x1 = (canvas.width - panX) / zoomLevel;
+    const y1 = (canvas.height - panY) / zoomLevel;
+    const startX = Math.floor(x0 / step) * step;
+    const startY = Math.floor(y0 / step) * step;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+    ctx.lineWidth = 1 / zoomLevel;  // keep ~1px regardless of zoom
+    ctx.beginPath();
+    for (let x = startX; x <= x1; x += step) {
+        ctx.moveTo(x, y0); ctx.lineTo(x, y1);
+    }
+    for (let y = startY; y <= y1; y += step) {
+        ctx.moveTo(x0, y); ctx.lineTo(x1, y);
+    }
+    ctx.stroke();
+    ctx.restore();
 }
 
 /**
@@ -923,8 +1034,9 @@ function handleCanvasMouseMove(e) {
         const y = (e.clientY - rect.top - panY) / zoomLevel;
         const pos = nodePositions[draggedNodeId];
         if (pos) {
-            pos.x = x - dragOffsetX;
-            pos.y = y - dragOffsetY;
+            // Snap the node center to the grid when snapping is enabled.
+            pos.x = snapCoord(x - dragOffsetX);
+            pos.y = snapCoord(y - dragOffsetY);
             dragMoved = true;
             canvas.style.cursor = 'grabbing';
             renderDiagram();
@@ -1261,7 +1373,12 @@ function renderDiagramWithHover() {
     ctx.save();
     ctx.translate(panX, panY);
     ctx.scale(zoomLevel, zoomLevel);
-    
+
+    // Grid overlay when snapping is on. A 2-5px grid is far too fine to render
+    // line-by-line, so we draw it at a visible multiple of the snap size and
+    // only when zoomed in enough to be legible (avoids a solid wash / CPU hit).
+    if (snapToGrid) drawSnapGrid();
+
     const allLayers = getAllLayers();
     
     // Draw substack grouping boxes (recursive — every node with children gets

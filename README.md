@@ -91,8 +91,11 @@ the migration rules.
   open tab is preserved as you edit.
 - **Diagram view**: drag nodes to reposition them (positions are saved with
   the project), drag the canvas to pan, scroll to zoom. The toolbar has zoom,
-  Fit, and Auto-arrange (↻) controls. Connection lines are labeled with their
-  type; hover a node to highlight its connections.
+  Fit, and Auto-arrange (↻) controls. A **Snap to grid** toggle (top-left, with
+  a 2–5px size picker) aligns dragged nodes to a grid and shows it while on.
+  Connection lines are labeled with their type; hover a node to highlight its
+  connections. When an action is selected, a dropdown (top-left) highlights its
+  path across the diagram.
 - **File menu**: New, Open (import JSON), Save (export JSON), and Templates.
   Projects auto-save to `localStorage`.
 
@@ -161,6 +164,8 @@ node samples/check-actions.mjs   # headless: action persistence + diagram path h
 node samples/check-schema.mjs    # headless: Planned status, Actor type, connection labels
 node samples/check-cost.mjs      # headless: percentage costs + status-aware rollup
 node samples/check-nesting.mjs   # headless: recursive substacks (layout, cost, deep nav)
+node samples/check-stack-layout.mjs # headless: no overlap, no exponential, no ghost
+node samples/check-snap.mjs      # headless: snap-to-grid toggle, rounding, realign
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 
