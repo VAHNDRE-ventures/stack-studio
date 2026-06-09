@@ -137,9 +137,12 @@ the migration rules.
       service *owns* its sub-modules.
     - **Flow** (process) — a layered top→bottom layout like a Mermaid
       flowchart. Nodes are ranked by edge direction; nodes sharing a `group`
-      are banded into labeled **phase lanes**; feedback/back-edges are drawn as
-      returns without breaking the ranking. Right for pipelines where data
-      *passes through* stages. A Mermaid import switches here automatically.
+      are packed into labeled **phase lanes**; edges are drawn as **orthogonal
+      (right-angle) connectors** that exit the bottom of a node and enter the
+      top of the next, fanned out into separate lanes so they don't overlap on
+      hubs; feedback/back-edges route around the side without breaking ranking.
+      Right for pipelines where data *passes through* stages. A Mermaid import
+      switches here automatically.
 - **File menu**: New, Open (import JSON), **Import Mermaid…** (convert a
   `flowchart`/`graph` definition — see below), Save (export JSON), and
   Templates. Projects auto-save to `localStorage`.
@@ -241,6 +244,7 @@ node samples/check-group-drag.mjs # headless: multi-select, group drag, group-aw
 node samples/check-export.mjs    # headless: hi-res PNG export bounds, aspect, restore
 node samples/check-mermaid.mjs   # pure: Mermaid → project conversion (shapes, edges, fan-out)
 node samples/check-flow.mjs      # headless: Flow layout ranks, phase bands, back-edges
+node samples/check-ortho.mjs     # headless: orthogonal edge routing in Flow mode
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 
@@ -308,7 +312,9 @@ headless test under `samples/`:
   (composition — substacks nested in group boxes) and Flow (process — nodes
   ranked top→bottom by edge direction with labeled phase lanes, à la a Mermaid
   flowchart, with phase-aware ranking so feedback loops don't interleave the
-  lanes). Toggle in the diagram toolbar; persisted per browser.
+  lanes, and **orthogonal right-angle edge routing** fanned across ports so
+  hub edges don't overlap). Toggle in the diagram toolbar; persisted per
+  browser.
 - **Sidebar.** Horizontally resizable (persisted), collapse handle glued to
   the panel edge, responsive width.
 - **Stack view fixes.** No ghost-card flash on entry, word-boundary wrapping

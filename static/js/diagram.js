@@ -1681,7 +1681,76 @@ function clipLineToNodes(x1, y1, x2, y2) {
     };
 }
 
-function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connectionType = 'HTTP', isHovered = false, isFaded = false, customLabel = null) {
+/**
+ * Compute an orthogonal (right-angle) route between two node CENTERS in flow
+ * mode. Returns an array of {x,y} waypoints from the source-box edge to the
+ * target-box edge. The route prefers vertical flow (exit bottom → enter top)
+ * for forward edges, and side-routing for back-edges / same-row edges.
+ *
+ * `sxOff`/`txOff` shift the exit/entry X within the node's width so multiple
+ * edges from/to the same node fan out into separate vertical lanes instead of
+ * stacking on one line (the hub-overlap problem).
+ */
+function orthogonalRoute(cx1, cy1, cx2, cy2, sxOff = 0, txOff = 0) {
+    const halfH = NODE_HEIGHT / 2;
+    const gap = 2;
+    const sx = cx1 + sxOff;
+    const tx = cx2 + txOff;
+
+    // Forward (target clearly below): exit bottom, enter top, jog at mid-Y.
+    if (cy2 - cy1 > NODE_HEIGHT) {
+        const sy = cy1 + halfH + gap;       // just below source
+        const ty = cy2 - halfH - gap;       // just above target
+        const midY = (sy + ty) / 2;
+        if (Math.abs(sx - tx) < 1) {
+            return [{ x: sx, y: sy }, { x: tx, y: ty }];
+        }
+        return [
+            { x: sx, y: sy },
+            { x: sx, y: midY },
+            { x: tx, y: midY },
+            { x: tx, y: ty }
+        ];
+    }
+
+    // Back-edge (target above) or same-row: route out the side, around, and in.
+    const goRight = tx >= sx;
+    const halfW = NODE_WIDTH / 2;
+    const sEdgeX = goRight ? cx1 + halfW + gap : cx1 - halfW - gap;
+    const tEdgeX = goRight ? cx2 + halfW + gap : cx2 - halfW - gap;
+    // A lane just outside whichever side is further out, so the vertical run
+    // clears both boxes.
+    const laneX = goRight ? Math.max(sEdgeX, tEdgeX) + 40 + Math.abs(sxOff)
+                          : Math.min(sEdgeX, tEdgeX) - 40 - Math.abs(sxOff);
+    return [
+        { x: sEdgeX, y: cy1 },
+        { x: laneX, y: cy1 },
+        { x: laneX, y: cy2 },
+        { x: tEdgeX, y: cy2 }
+    ];
+}
+
+/**
+ * Stroke a polyline with rounded corners. `pts` is an array of {x,y}.
+ */
+function strokeRoundedPolyline(pts, radius) {
+    if (!pts || pts.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+        const p = pts[i];
+        // Round the corner at p between segment (prev→p) and (p→next).
+        if (ctx.arcTo) {
+            ctx.arcTo(p.x, p.y, pts[i + 1].x, pts[i + 1].y, radius);
+        } else {
+            ctx.lineTo(p.x, p.y);
+        }
+    }
+    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+    ctx.stroke();
+}
+
+function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connectionType = 'HTTP', isHovered = false, isFaded = false, customLabel = null, route = null) {
     // Get connection type styling
     const typeStyle = CONNECTION_TYPES[connectionType] || CONNECTION_TYPES['HTTP'];
     
@@ -1726,6 +1795,31 @@ function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connection
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
     ctx.setLineDash(pattern);
+
+    // ORTHOGONAL ROUTE (flow mode): draw a right-angle polyline with rounded
+    // corners, an arrowhead on the final segment, and the label at the path
+    // midpoint. The route already starts/ends on the node borders.
+    if (route && route.length >= 2) {
+        strokeRoundedPolyline(route, 10);
+
+        // Arrowhead at the very end, oriented along the last segment.
+        const pen = route[route.length - 2];
+        const tip = route[route.length - 1];
+        const ang = Math.atan2(tip.y - pen.y, tip.x - pen.x);
+        const headLength = 10;
+        ctx.beginPath();
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(tip.x - headLength * Math.cos(ang - Math.PI / 6), tip.y - headLength * Math.sin(ang - Math.PI / 6));
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(tip.x - headLength * Math.cos(ang + Math.PI / 6), tip.y - headLength * Math.sin(ang + Math.PI / 6));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Label at the geometric midpoint of the longest segment so it doesn't
+        // land on a corner.
+        drawConnectionLabel(route, typeStyle, connectionType, isHovered, isFaded, customLabel);
+        return;
+    }
 
     // Clip the endpoints to each node's rectangular border so the line starts
     // and the arrowhead lands on the box edge rather than the center (which
@@ -1784,49 +1878,65 @@ function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connection
     
     ctx.setLineDash([]);
 
-    // On-canvas connection label at the midpoint. Shows the custom payload
-    // label when set (e.g. "custom_id + amount only"), otherwise the transport
-    // type. Custom labels carry meaning, so they show at lower zoom too.
-    const hasCustom = !!customLabel;
-    if ((isHovered || zoomLevel >= (hasCustom ? 0.5 : 0.7)) && !isFaded) {
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
-        let label = hasCustom ? customLabel : (typeStyle.label || connectionType);
-        if (label.length > 36) label = label.slice(0, 35) + '…';
-        ctx.font = isHovered ? 'bold 11px sans-serif' : '10px sans-serif';
-        const padX = 6;
-        const textW = ctx.measureText(label).width;
-        const boxW = textW + padX * 2;
-        const boxH = 16;
+    // On-canvas connection label at the midpoint (straight-line path).
+    drawConnectionLabelAt((x1 + x2) / 2, (y1 + y2) / 2, typeStyle, connectionType, isHovered, isFaded, customLabel);
+}
 
-        ctx.fillStyle = '#0f172a';
-        ctx.globalAlpha = isHovered ? 1 : 0.85;
-        if (ctx.roundRect) {
-            ctx.beginPath();
-            ctx.roundRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH, 3);
-            ctx.fill();
-        } else {
-            ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
-        }
-        // Custom payload labels get a brighter border so they stand out from
-        // plain transport-type labels.
-        ctx.strokeStyle = hasCustom ? '#e2e8f0' : typeStyle.color;
-        ctx.lineWidth = 1;
-        ctx.globalAlpha = isHovered ? 1 : (hasCustom ? 0.85 : 0.6);
-        if (ctx.roundRect) {
-            ctx.beginPath();
-            ctx.roundRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH, 3);
-            ctx.stroke();
-        } else {
-            ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
-        }
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = hasCustom ? '#e2e8f0' : typeStyle.color;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, midX, midY);
-        ctx.textBaseline = 'alphabetic';
+/**
+ * Draw a connection label centered on a point. Shows the custom payload label
+ * when set, otherwise the transport-type label. Shared by straight and
+ * orthogonal edges.
+ */
+function drawConnectionLabelAt(midX, midY, typeStyle, connectionType, isHovered, isFaded, customLabel) {
+    const hasCustom = !!customLabel;
+    if (!((isHovered || zoomLevel >= (hasCustom ? 0.5 : 0.7)) && !isFaded)) return;
+    let label = hasCustom ? customLabel : (typeStyle.label || connectionType);
+    if (label.length > 36) label = label.slice(0, 35) + '…';
+    ctx.font = isHovered ? 'bold 11px sans-serif' : '10px sans-serif';
+    const padX = 6;
+    const textW = ctx.measureText(label).width;
+    const boxW = textW + padX * 2;
+    const boxH = 16;
+
+    ctx.fillStyle = '#0f172a';
+    ctx.globalAlpha = isHovered ? 1 : 0.85;
+    if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH, 3);
+        ctx.fill();
+    } else {
+        ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
     }
+    ctx.strokeStyle = hasCustom ? '#e2e8f0' : typeStyle.color;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = isHovered ? 1 : (hasCustom ? 0.85 : 0.6);
+    if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH, 3);
+        ctx.stroke();
+    } else {
+        ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = hasCustom ? '#e2e8f0' : typeStyle.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, midX, midY);
+    ctx.textBaseline = 'alphabetic';
+}
+
+/**
+ * Pick the midpoint of a polyline's longest segment and draw the label there,
+ * so it sits on a straight run rather than a corner.
+ */
+function drawConnectionLabel(route, typeStyle, connectionType, isHovered, isFaded, customLabel) {
+    let best = 0, bx = route[0].x, by = route[0].y;
+    for (let i = 0; i < route.length - 1; i++) {
+        const a = route[i], b = route[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (len > best) { best = len; bx = (a.x + b.x) / 2; by = (a.y + b.y) / 2; }
+    }
+    drawConnectionLabelAt(bx, by, typeStyle, connectionType, isHovered, isFaded, customLabel);
 }
 
 function getNodeAtPosition(x, y) {
@@ -2138,12 +2248,20 @@ function getConnectionAtPosition(x, y) {
     const hoveredConnections = [];
     
     for (let conn of connections) {
-        const distance = pointToLineDistance(x, y, conn.x1, conn.y1, conn.x2, conn.y2);
+        let distance;
+        if (conn.points && conn.points.length >= 2) {
+            // Orthogonal route: min distance to any segment of the polyline.
+            distance = Infinity;
+            for (let i = 0; i < conn.points.length - 1; i++) {
+                const a = conn.points[i], b = conn.points[i + 1];
+                const d = pointToLineDistance(x, y, a.x, a.y, b.x, b.y);
+                if (d < distance) distance = d;
+            }
+        } else {
+            distance = pointToLineDistance(x, y, conn.x1, conn.y1, conn.x2, conn.y2);
+        }
         if (distance < tolerance) {
-            hoveredConnections.push({
-                connection: conn,
-                distance: distance
-            });
+            hoveredConnections.push({ connection: conn, distance });
         }
     }
     
@@ -2389,6 +2507,31 @@ function renderDiagramWithHover() {
     project.layers.forEach(layer => drawGroupBox(layer, 0));
     }
     
+    // FLOW mode: pre-allocate horizontal "ports" on each node so multiple edges
+    // leaving/entering the same node fan out into separate vertical lanes
+    // instead of stacking on one line (fixes the hub-overlap tangle). For each
+    // node we count its outgoing and incoming edges and assign each a slot
+    // spread across the node's width.
+    const useOrtho = (diagramLayoutMode === 'flow');
+    const outPorts = {}, inPorts = {}, outIdx = {}, inIdx = {};
+    if (useOrtho) {
+        allLayers.forEach(layer => {
+            const sid = String(layer.id);
+            (layer.connections || []).forEach(conn => {
+                const tid = String(typeof conn === 'object' ? conn.targetId : conn);
+                if (!nodePositions[tid]) return;
+                outPorts[sid] = (outPorts[sid] || 0) + 1;
+                inPorts[tid] = (inPorts[tid] || 0) + 1;
+            });
+        });
+    }
+    // Spread n ports across ~70% of the node width, return the offset for slot i.
+    const portOffset = (n, i) => {
+        if (!n || n <= 1) return 0;
+        const span = NODE_WIDTH * 0.7;
+        return -span / 2 + (span * i) / (n - 1);
+    };
+    
     // Draw connections with hover highlighting
     connections = [];
     allLayers.forEach(layer => {
@@ -2420,6 +2563,20 @@ function renderDiagramWithHover() {
                         label: connectionLabel,
                         isSubstack: isSubstackConnection || isTargetSubstack
                     };
+
+                    // Compute an orthogonal route in flow mode, fanning out the
+                    // exit/entry X by this edge's port slot on each node.
+                    if (useOrtho) {
+                        const sid = String(layer.id), tid = String(actualTargetId);
+                        const si = (outIdx[sid] = (outIdx[sid] || 0)); outIdx[sid]++;
+                        const ti = (inIdx[tid] = (inIdx[tid] || 0)); inIdx[tid]++;
+                        const sOff = portOffset(outPorts[sid], si);
+                        const tOff = portOffset(inPorts[tid], ti);
+                        connObj.route = orthogonalRoute(x1, y1, x2, y2, sOff, tOff);
+                        // Store polyline for hit-testing (use the route points).
+                        connObj.points = connObj.route;
+                    }
+
                     connections.push(connObj);
                     
                     // Check if this connection is in the hovered connections array
@@ -2450,7 +2607,7 @@ function renderDiagramWithHover() {
                         isFaded = !onPath;
                     }
 
-                    drawConnection(x1, y1, x2, y2, isSubstackConnection || isTargetSubstack, connectionType, isHovered, isFaded, connectionLabel);
+                    drawConnection(x1, y1, x2, y2, isSubstackConnection || isTargetSubstack, connectionType, isHovered, isFaded, connectionLabel, connObj.route || null);
                 }
             });
         }
