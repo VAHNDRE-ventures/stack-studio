@@ -13,6 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const BASE = 'http://localhost:8777';
 const view = process.argv[2] || 'stack';
+// Optional second arg: an explicit output PNG path (absolute or relative to the
+// package root). Defaults to samples/shots/<view>.png.
+const outArg = process.argv[3] || null;
 const shotsDir = path.join(__dirname, 'shots');
 fs.mkdirSync(shotsDir, { recursive: true });
 
@@ -31,7 +34,14 @@ setTimeout(async () => {
     document.getElementById('project-title').textContent = project.name;
     renderLayers(); updateStats(); selectLayer(0);
     toggleView('${view}');
-    if ('${view}' === 'diagram') { setTimeout(() => zoomToFit(), 300); }
+    // For the diagram shot, run the group-aware auto-arrange so the captured
+    // layout is clean (no overlapping group boxes), then fit.
+    if ('${view}' === 'diagram') {
+        setTimeout(() => {
+            if (typeof autoArrangeDiagram === 'function') autoArrangeDiagram();
+            else if (typeof zoomToFit === 'function') zoomToFit();
+        }, 300);
+    }
 }, 800);
 </script>
 </body></html>`;
@@ -40,7 +50,9 @@ const tmp = path.join(__dirname, '..', '_shot_harness.html');
 fs.writeFileSync(tmp, harness);
 
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ss-shot-'));
-const out = path.join(shotsDir, `${view}.png`);
+const out = outArg
+    ? (path.isAbsolute(outArg) ? outArg : path.join(__dirname, '..', outArg))
+    : path.join(shotsDir, `${view}.png`);
 const args = [
     '--headless=new', '--disable-gpu', '--no-sandbox',
     `--user-data-dir=${userDataDir}`,

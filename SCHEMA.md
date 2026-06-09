@@ -30,7 +30,7 @@ Open imports it. Older documents are upgraded automatically on load (see
 | `avgTransactionValue` | number? | Average transaction value used to evaluate percentage-of-value costs. Defaults to `50`. Editable in the Cost dashboard. |
 | `layers` | Layer[] | The stack's top-level nodes. |
 | `usePaths` | Action[]? | Named operations traced through the stack. May be absent. |
-| `diagramPositions` | object? | `{ nodeId: {x, y} }` — manual node positions from the diagram, so a dragged layout survives reload. Keys are stringified node ids. |
+| `diagramPositions` | object? | `{ nodeId: {x, y} }` — manual node positions from the diagram, so a dragged layout survives reload. Written by node drag, group drag, snap, and auto-arrange. Keys are stringified node ids. |
 
 ---
 

@@ -15,8 +15,9 @@ It offers four synchronized views over a single project model:
 - **Stack** — a rotary carousel of layers; drill into substacks (nested to any
   depth) with a breadcrumb in the details panel.
 - **Diagram** — a draggable C4-style architecture diagram with typed, labeled
-  connections, recursive substack grouping, snap-to-grid, and action-path
-  highlighting.
+  connections, recursive substack grouping, snap-to-grid, multi-select group
+  dragging, group-aware auto-arrange, action-path highlighting, and
+  ultra-high-resolution PNG export.
 - **Actions** — named request paths traced across layers, with cost-per-operation.
 - **Cost** — a roll-up of per-layer fixed, variable, and percentage-of-value
   costs, with a Current/Projected scope toggle and a per-transaction view.
@@ -92,12 +93,24 @@ the migration rules.
   open tab is preserved as you edit. The panel collapses (handle on its edge)
   and is horizontally resizable (drag its left edge).
 - **Diagram view**: drag nodes to reposition them (positions are saved with
-  the project), drag the canvas to pan, scroll to zoom. The toolbar has zoom,
-  Fit, and Auto-arrange (↻) controls. A **Snap to grid** toggle (top-left, with
-  a 5–20px size picker) aligns dragged nodes to a grid and shows it while on.
-  Connection lines are labeled with their type; hover a node to highlight its
-  connections. When an action is selected, a dropdown (top-left) highlights its
-  path across the diagram.
+  the project), drag the canvas to pan, scroll to zoom. The toolbar (top-right)
+  has zoom, Fit, Auto-arrange (↻), and Export (⬇) controls. A **Snap to grid**
+  toggle (top-left, with a 5–20px size picker) aligns dragged nodes to a grid
+  and shows it while on. Connection lines are labeled with their type; hover a
+  node to highlight its connections. When an action is selected, a dropdown
+  (top-left) highlights its path across the diagram.
+  - **Multi-select & group drag**: Ctrl/Cmd+click toggles nodes into a
+    selection; dragging any selected node moves the whole set together.
+    Alt+drag a node grabs its entire subtree (node + all descendants) as one
+    movable group. Selected nodes get a dashed highlight ring; Escape or an
+    empty-canvas click clears the selection.
+  - **Auto-arrange** (↻) relays out the stack and then pushes overlapping
+    top-level group boxes apart so the dashed group borders never intersect.
+    It's a single undo step and doesn't disturb the layout unless you press it.
+  - **Export** (⬇) saves an ultra-high-resolution PNG. The image aspect ratio
+    is exactly the bounding box of every element (nodes + group boxes) plus
+    20px padding — no viewport crop or whitespace. Renders at 4× and caps the
+    longest side at 12000px to stay within browser limits.
 - **File menu**: New, Open (import JSON), Save (export JSON), and Templates.
   Projects auto-save to `localStorage`.
 
@@ -109,8 +122,11 @@ the migration rules.
 | → / ← | Enter / exit a substack |
 | Mouse wheel | Scroll layers (Stack) / zoom (Diagram) |
 | Drag node | Reposition (Diagram) |
+| Ctrl/Cmd+click node | Toggle node in multi-selection (Diagram) |
+| Alt+drag node | Grab + move the node's whole subtree (Diagram) |
 | Drag canvas | Pan (Diagram) |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
+| Escape | Clear diagram multi-selection |
 
 ## Actions
 
@@ -168,6 +184,9 @@ node samples/check-cost.mjs      # headless: percentage costs + status-aware rol
 node samples/check-nesting.mjs   # headless: recursive substacks (layout, cost, deep nav)
 node samples/check-stack-layout.mjs # headless: no overlap, no exponential, no ghost
 node samples/check-snap.mjs      # headless: snap-to-grid toggle, rounding, realign
+node samples/check-undo.mjs      # headless: field/drag undo, Ctrl+Z inside inputs
+node samples/check-group-drag.mjs # headless: multi-select, group drag, group-aware arrange
+node samples/check-export.mjs    # headless: hi-res PNG export bounds, aspect, restore
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 
@@ -218,7 +237,15 @@ headless test under `samples/`:
   edits auto-save, the diagram shows an action-path **dropdown** to switch or
   clear the highlighted path, and the list renders actions of any `source`.
 - **Diagram UX.** Snap-to-grid (5–20px) with a grid overlay; edge-clipped
-  connection routing.
+  connection routing. **Multi-select** (Ctrl/Cmd+click) with **group dragging**
+  — move a whole selection or Alt+grab a node's entire subtree together.
+  **Group-aware auto-arrange** that separates overlapping top-level group boxes
+  so the dashed borders never intersect. **Ultra-high-res PNG export** framed
+  exactly to all elements + 20px padding (4×, capped at 12000px).
+- **Undo/redo robustness.** Node drags (single and group) are undoable, the
+  auto-arrange is one undo step, and Ctrl+Z while a form field is focused
+  commits the field's edit then runs the app undo (instead of dead-ending in
+  the browser's native text-undo).
 - **Sidebar.** Horizontally resizable (persisted), collapse handle glued to
   the panel edge, responsive width.
 - **Stack view fixes.** No ghost-card flash on entry, word-boundary wrapping
