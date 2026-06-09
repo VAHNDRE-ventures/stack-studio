@@ -157,6 +157,7 @@ function addZoomControls() {
         <button onclick="zoomOut()" title="Zoom out" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 16px;">\u2212</button>
         <button onclick="zoomToFit()" title="Fit to screen" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Fit</button>
         <button onclick="arrangeButtonClick()" title="Auto-arrange nodes (groups kept apart)" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">\u21BB</button>
+        <button onclick="exportDiagramImage(4)" title="Export high-resolution PNG (fits all elements + 20px)" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">\u2B07</button>
     `;
     container.appendChild(controls);
 
@@ -624,6 +625,134 @@ function arrangeButtonClick() {
         if (typeof redoStack !== 'undefined') redoStack = [];
     }
     autoArrangeDiagram();
+}
+
+// Background fill used for image export (matches the .diagram-frame CSS bg).
+const DIAGRAM_BG = '#1e293b';
+
+/**
+ * Bounding box (world coords) of everything drawn in the diagram: every node's
+ * rectangle plus every group box (which already includes its own dashed-border
+ * padding), expanded by `pad` on all sides. Returns null if nothing is placed.
+ */
+function computeContentBounds(pad = 20) {
+    const all = getAllLayers();
+    let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+    let any = false;
+    all.forEach(l => {
+        const p = nodePositions[l.id];
+        if (p) {
+            any = true;
+            L = Math.min(L, p.x - NODE_WIDTH / 2);
+            R = Math.max(R, p.x + NODE_WIDTH / 2);
+            T = Math.min(T, p.y - NODE_HEIGHT / 2);
+            B = Math.max(B, p.y + NODE_HEIGHT / 2);
+        }
+    });
+    if (!any) return null;
+
+    // Fold in each group box (recursively) so the dashed borders + group labels
+    // are inside the exported frame, not clipped at the edge.
+    const incl = (node, depth) => {
+        const gb = groupBounds(node, depth);
+        if (gb) {
+            L = Math.min(L, gb.left); R = Math.max(R, gb.right);
+            // Group label sits a few px above the box top; pad covers it.
+            T = Math.min(T, gb.top); B = Math.max(B, gb.bottom);
+        }
+        if (node.substacks) node.substacks.forEach(c => incl(c, depth + 1));
+    };
+    (project.layers || []).forEach(l => incl(l, 0));
+
+    return { left: L - pad, top: T - pad, right: R + pad, bottom: B + pad };
+}
+
+/**
+ * Export the whole diagram as an ultra-high-resolution PNG. The image aspect
+ * ratio is exactly the content bounding box (top-left → bottom-right of all
+ * elements) plus ~20px padding — no viewport cropping, no extra whitespace.
+ *
+ * Rendering reuses the live draw pipeline by temporarily pointing the module's
+ * canvas/ctx/zoom/pan globals at an off-screen canvas sized to the content, so
+ * the export is pixel-identical to what's on screen (minus hover/selection
+ * chrome and the snap grid, which are suppressed for a clean export).
+ *
+ * @param {number} scale  device-pixels per world-unit (default 4 = "ultra").
+ */
+function exportDiagramImage(scale = 4) {
+    if (!canvas || !ctx || typeof project === 'undefined' || !project) return;
+    ensureNodePositions();
+
+    const PAD = 20;
+    const b = computeContentBounds(PAD);
+    if (!b) { alert('Nothing to export yet.'); return; }
+
+    const wWorld = b.right - b.left;
+    const hWorld = b.bottom - b.top;
+
+    // Cap the largest output dimension so we stay within browser canvas limits
+    // (toDataURL fails on very large canvases). 12000px keeps quality high while
+    // staying safe across browsers; scale is reduced to fit if needed.
+    const MAX_DIM = 12000;
+    let s = Math.max(1, scale);
+    if (wWorld * s > MAX_DIM || hWorld * s > MAX_DIM) {
+        s = Math.max(1, Math.min(MAX_DIM / wWorld, MAX_DIM / hWorld));
+    }
+
+    const off = document.createElement('canvas');
+    off.width = Math.max(1, Math.round(wWorld * s));
+    off.height = Math.max(1, Math.round(hWorld * s));
+
+    // Swap the rendering globals to the off-screen target.
+    const sv = {
+        canvas, ctx, zoomLevel, panX, panY,
+        hoveredNodeId, hoveredConnection, selectedNodeIds, snapToGrid
+    };
+    canvas = off;
+    ctx = off.getContext('2d');
+    zoomLevel = s;
+    panX = -b.left * s;
+    panY = -b.top * s;
+    // Suppress interactive chrome for a clean export.
+    hoveredNodeId = null;
+    hoveredConnection = null;
+    selectedNodeIds = new Set();
+    snapToGrid = false;
+
+    let url = null;
+    try {
+        renderDiagramWithHover();
+        // Paint the background behind everything (the render clears to
+        // transparent, so we composite the bg underneath).
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = DIAGRAM_BG;
+        ctx.fillRect(0, 0, off.width, off.height);
+        ctx.restore();
+        url = off.toDataURL('image/png');
+    } catch (e) {
+        console.error('Diagram export failed:', e);
+        alert('Export failed: ' + e.message);
+    } finally {
+        // Restore the on-screen rendering globals and redraw.
+        canvas = sv.canvas; ctx = sv.ctx;
+        zoomLevel = sv.zoomLevel; panX = sv.panX; panY = sv.panY;
+        hoveredNodeId = sv.hoveredNodeId;
+        hoveredConnection = sv.hoveredConnection;
+        selectedNodeIds = sv.selectedNodeIds;
+        snapToGrid = sv.snapToGrid;
+        renderDiagram();
+    }
+
+    if (url) {
+        const safe = (project.name || 'diagram').replace(/[^a-z0-9-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'diagram';
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${safe}_diagram_${off.width}x${off.height}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
 }
 
 /**
