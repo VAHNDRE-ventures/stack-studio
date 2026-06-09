@@ -48,13 +48,13 @@ A project is a JSON document:
     {
       "id": 1,
       "name": "API Gateway",
-      "type": "API",                 // Core|Frontend|Backend|Database|DevOps|API|Other
-      "status": "Active",            // Active|Inactive|Deprecated
+      "type": "API",                 // Core|Frontend|Backend|Database|DevOps|API|Actor|External|Other
+      "status": "Active",            // Active|Inactive|Deprecated|Planned|Proposed
       "technology": "Express.js",
       "description": "...",
       "responsibilities": "...",
       "connections": [               // canonical form: array of objects
-        { "targetId": 2, "type": "HTTP" }
+        { "targetId": 2, "type": "HTTP", "label": "what flows here (optional)" }
       ],
       "costModel": { "currency": "USD", "period": "month",
                      "fixedCost": 400, "variableCost": 0.00002,
@@ -66,9 +66,18 @@ A project is a JSON document:
 }
 ```
 
-Connections are stored as `{ targetId, type }` objects. Legacy numeric and
-parallel-array forms are migrated automatically on load. The real-world
-sample in `samples/sample-saas.json` is used by the test suite.
+Connections are stored as `{ targetId, type }` objects, with an optional
+`label` describing what data flows across the edge (shown on the diagram and
+in the connection tooltip). Legacy numeric and parallel-array forms are
+migrated automatically on load.
+
+**Node types** include the infrastructure types plus `Actor` (external person,
+drawn with a person glyph) and `External` (third-party system) — both excluded
+from cost rollups. **Statuses** include `Planned` and `Proposed` for roadmap
+nodes, which render with a dashed border and a status pill so a single diagram
+can show current + future state.
+
+The real-world sample in `samples/sample-saas.json` is used by the test suite.
 
 ## Using it
 
@@ -144,6 +153,7 @@ node samples/check-wiring.mjs    # static: no dup functions, handlers resolve
 node samples/smoke.mjs           # headless Chrome: boots, loads sample, all views
 node samples/check-diagram.mjs   # headless: layout, edges, drag persistence
 node samples/check-actions.mjs   # headless: action persistence + diagram path highlight
+node samples/check-schema.mjs    # headless: Planned status, Actor type, connection labels
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 

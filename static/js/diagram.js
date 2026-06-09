@@ -92,6 +92,18 @@ function addZoomControls() {
         hint.style.cssText = 'position: absolute; bottom: 16px; left: 16px; background: rgba(15,23,42,0.85); border: 1px solid #334155; color: #94a3b8; padding: 6px 12px; border-radius: 4px; font-size: 11px; z-index: 100; pointer-events: none;';
         container.appendChild(hint);
     }
+
+    // Legend: explains node statuses (dashed = planned) and the actor glyph.
+    if (!document.getElementById('diagram-legend')) {
+        const legend = document.createElement('div');
+        legend.id = 'diagram-legend';
+        legend.style.cssText = 'position: absolute; bottom: 16px; right: 16px; background: rgba(15,23,42,0.9); border: 1px solid #334155; color: #94a3b8; padding: 8px 12px; border-radius: 6px; font-size: 11px; z-index: 100; pointer-events: none; line-height: 1.7;';
+        legend.innerHTML =
+            '<div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;border:2px dashed #f59e0b;border-radius:2px;"></span> Planned / Proposed</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;"><span style="color:#ec4899;">\u{1F9D1}</span> External actor</div>' +
+            '<div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;border-top:2px solid #e2e8f0;"></span> Labeled data flow</div>';
+        container.appendChild(legend);
+    }
 }
 
 function zoomIn() {
@@ -434,16 +446,25 @@ function drawNode(layer, x, y, isSelected) {
         'Database': { shape: 'cylinder', color: '#8b5cf6', icon: '💾' },
         'DevOps': { shape: 'cloud', color: '#ef4444', icon: '☁️' },
         'Core': { shape: 'rect', color: '#3b82f6', icon: '🎯' },
+        'Actor': { shape: 'actor', color: '#ec4899', icon: '🧑' },
+        'External': { shape: 'rect', color: '#a3a3a3', icon: '🌐' },
         'Other': { shape: 'rect', color: '#6b7280', icon: '📦' }
     };
     
     const style = c4Styles[layer.type] || c4Styles['Other'];
-    
+
+    // Future (Planned/Proposed) nodes render with a dashed border and muted
+    // fill so a single diagram can show current + roadmap state.
+    const future = (typeof isFutureStatus === 'function') && isFutureStatus(layer.status);
+    if (future) ctx.globalAlpha = Math.min(ctx.globalAlpha, 0.7);
+
     ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
-    
+
+    if (future) ctx.setLineDash([7, 4]);
+
     // Draw shape based on type
     if (style.shape === 'cylinder') {
         drawCylinder(x, y, width, height, isSelected, style.color);
@@ -451,10 +472,13 @@ function drawNode(layer, x, y, isSelected) {
         drawHexagon(x, y, width, height, isSelected, style.color);
     } else if (style.shape === 'cloud') {
         drawCloud(x, y, width, height, isSelected, style.color);
+    } else if (style.shape === 'actor') {
+        drawActor(x, y, width, height, isSelected, style.color);
     } else {
         drawRect(x, y, width, height, isSelected, style.color);
     }
-    
+
+    ctx.setLineDash([]);
     ctx.shadowColor = 'transparent';
     
     // Icon
@@ -470,12 +494,27 @@ function drawNode(layer, x, y, isSelected) {
     ctx.font = '11px sans-serif';
     ctx.fillStyle = '#94a3b8';
     ctx.fillText(layer.type, x, y + 18);
-    
+
+    // Status pill for non-active states so Planned/Deprecated reads at a glance.
+    if (layer.status && layer.status !== 'Active') {
+        ctx.font = '9px sans-serif';
+        const stxt = layer.status.toUpperCase();
+        const sw = ctx.measureText(stxt).width + 12;
+        const sy = y - height / 2 + 12;
+        ctx.fillStyle = future ? 'rgba(245, 158, 11, 0.9)' : 'rgba(148, 163, 184, 0.9)';
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x - sw / 2, sy - 8, sw, 14, 7); ctx.fill(); }
+        else ctx.fillRect(x - sw / 2, sy - 8, sw, 14);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(stxt, x, sy);
+    }
+
     if (layer.technology) {
         ctx.font = '10px sans-serif';
         ctx.fillStyle = '#64748b';
         ctx.fillText(layer.technology.substring(0, 30), x, y + 35);
     }
+
+    if (future) ctx.globalAlpha = 1;
 }
 
 function drawRect(x, y, width, height, isSelected, color) {
@@ -550,6 +589,38 @@ function drawCloud(x, y, width, height, isSelected, color) {
 }
 
 /**
+ * External actor: a rounded box with a small person glyph in the top-left
+ * corner (C4-style), distinguishing people/external systems from infra.
+ */
+function drawActor(x, y, width, height, isSelected, color) {
+    ctx.fillStyle = isSelected ? '#3f2740' : '#241a22';
+    const r = 14;
+    const left = x - width / 2, top = y - height / 2;
+    if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(left, top, width, height, r);
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.stroke();
+    } else {
+        ctx.fillRect(left, top, width, height);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.strokeRect(left, top, width, height);
+    }
+    // Person glyph, top-left
+    const px = left + 18, py = top + 20;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);  // head
+    ctx.fill();
+    ctx.beginPath();                      // shoulders
+    ctx.arc(px, py + 13, 8, Math.PI, Math.PI * 2);
+    ctx.fill();
+}
+
+/**
  * Move the connection endpoints from node centers to the node-rectangle
  * borders along the line direction. Keeps lines and arrowheads on the box
  * edges instead of hidden under the nodes. Uses NODE_WIDTH/HEIGHT plus a
@@ -587,7 +658,7 @@ function clipLineToNodes(x1, y1, x2, y2) {
     };
 }
 
-function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connectionType = 'HTTP', isHovered = false, isFaded = false) {
+function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connectionType = 'HTTP', isHovered = false, isFaded = false, customLabel = null) {
     // Get connection type styling
     const typeStyle = CONNECTION_TYPES[connectionType] || CONNECTION_TYPES['HTTP'];
     
@@ -690,14 +761,15 @@ function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connection
     
     ctx.setLineDash([]);
 
-    // On-canvas connection-type label at the midpoint. Previously the type was
-    // only discoverable by hovering; labeling inline makes the diagram
-    // self-documenting. Hidden when zoomed far out to avoid clutter, always
-    // shown for the hovered connection.
-    if ((isHovered || zoomLevel >= 0.7) && !isFaded) {
+    // On-canvas connection label at the midpoint. Shows the custom payload
+    // label when set (e.g. "custom_id + amount only"), otherwise the transport
+    // type. Custom labels carry meaning, so they show at lower zoom too.
+    const hasCustom = !!customLabel;
+    if ((isHovered || zoomLevel >= (hasCustom ? 0.5 : 0.7)) && !isFaded) {
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;
-        const label = typeStyle.label || connectionType;
+        let label = hasCustom ? customLabel : (typeStyle.label || connectionType);
+        if (label.length > 36) label = label.slice(0, 35) + '…';
         ctx.font = isHovered ? 'bold 11px sans-serif' : '10px sans-serif';
         const padX = 6;
         const textW = ctx.measureText(label).width;
@@ -713,9 +785,11 @@ function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connection
         } else {
             ctx.fillRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
         }
-        ctx.strokeStyle = typeStyle.color;
+        // Custom payload labels get a brighter border so they stand out from
+        // plain transport-type labels.
+        ctx.strokeStyle = hasCustom ? '#e2e8f0' : typeStyle.color;
         ctx.lineWidth = 1;
-        ctx.globalAlpha = isHovered ? 1 : 0.6;
+        ctx.globalAlpha = isHovered ? 1 : (hasCustom ? 0.85 : 0.6);
         if (ctx.roundRect) {
             ctx.beginPath();
             ctx.roundRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH, 3);
@@ -724,7 +798,7 @@ function drawConnection(x1, y1, x2, y2, isSubstackConnection = false, connection
             ctx.strokeRect(midX - boxW / 2, midY - boxH / 2, boxW, boxH);
         }
         ctx.globalAlpha = 1;
-        ctx.fillStyle = typeStyle.color;
+        ctx.fillStyle = hasCustom ? '#e2e8f0' : typeStyle.color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(label, midX, midY);
@@ -1074,8 +1148,9 @@ function showConnectionTooltip(e, connectionsArray) {
         tooltipHTML += `
             <div style="font-weight: 600; margin-bottom: 4px; color: ${typeStyle.color};">${typeLabel}</div>
             <div style="font-size: 12px; color: #cbd5e1;">
-                ${connection.sourceName} → ${connection.targetName}
+                ${escapeHtml(connection.sourceName)} → ${escapeHtml(connection.targetName)}
             </div>
+            ${connection.label ? `<div style="font-size: 11px; color: #93c5fd; margin-top: 3px;">${escapeHtml(connection.label)}</div>` : ''}
         `;
     });
     
@@ -1164,6 +1239,7 @@ function renderDiagramWithHover() {
             layer.connections.forEach(conn => {
                 const targetId = typeof conn === 'object' ? conn.targetId : conn;
                 const connectionType = typeof conn === 'object' ? conn.type : 'HTTP';
+                const connectionLabel = (typeof conn === 'object' && conn.label) ? conn.label : null;
                 const target = allLayers.find(l => l.id == targetId);
                 
                 const actualTargetId = target ? target.id : targetId;
@@ -1184,6 +1260,7 @@ function renderDiagramWithHover() {
                         targetId: actualTargetId,
                         targetName: target.name,
                         type: connectionType,
+                        label: connectionLabel,
                         isSubstack: isSubstackConnection || isTargetSubstack
                     };
                     connections.push(connObj);
@@ -1216,7 +1293,7 @@ function renderDiagramWithHover() {
                         isFaded = !onPath;
                     }
 
-                    drawConnection(x1, y1, x2, y2, isSubstackConnection || isTargetSubstack, connectionType, isHovered, isFaded);
+                    drawConnection(x1, y1, x2, y2, isSubstackConnection || isTargetSubstack, connectionType, isHovered, isFaded, connectionLabel);
                 }
             });
         }

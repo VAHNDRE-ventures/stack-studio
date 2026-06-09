@@ -100,7 +100,7 @@ if (!m) {
 const result = JSON.parse(m[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
 
 log((result.errors || []).length === 0, `no console errors${result.errors && result.errors.length ? ': ' + result.errors.join(' | ') : ''}`);
-log(result.stackLayers === 7, `stack renders 7 top-level layers (got ${result.stackLayers})`);
+log(result.stackLayers === 9, `stack renders 9 top-level layers (got ${result.stackLayers})`);
 log(result.title === 'Acme SaaS Platform', `project title loaded (got ${result.title})`);
 log(result.canvasW > 0, `diagram canvas sized (${result.canvasW}px)`);
 log(result.costRendered === true, 'cost dashboard renders');

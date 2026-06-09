@@ -6,8 +6,30 @@ const LAYER_TYPES = {
     'Database': '#8b5cf6',
     'DevOps': '#ef4444',
     'API': '#06b6d4',
+    'Actor': '#ec4899',
+    'External': '#a3a3a3',
     'Other': '#6b7280'
 };
+
+// Lifecycle statuses. Active/Inactive/Deprecated are the originals; Planned
+// and Proposed let a single diagram show current + roadmap state.
+const LAYER_STATUSES = ['Active', 'Inactive', 'Deprecated', 'Planned', 'Proposed'];
+
+// Statuses that represent infrastructure that isn't live yet. Used to exclude
+// them from "current" cost rollups and to give them a distinct visual.
+const FUTURE_STATUSES = ['Planned', 'Proposed'];
+
+// Node types that are external actors/systems, not infrastructure we own or
+// pay for. Excluded from cost rollups by default.
+const ACTOR_TYPES = ['Actor', 'External'];
+
+function isFutureStatus(status) {
+    return FUTURE_STATUSES.includes(status);
+}
+
+function isActorType(type) {
+    return ACTOR_TYPES.includes(type);
+}
 
 // Normalize connections to the canonical object format: { targetId, type }.
 // This is the format used by real exports (e.g. sample-saas.json) and read by
@@ -21,7 +43,10 @@ function migrateConnectionFormat(layer) {
 
     layer.connections = layer.connections.map(conn => {
         if (conn && typeof conn === 'object') {
-            return { targetId: conn.targetId, type: conn.type || 'HTTP' };
+            const out = { targetId: conn.targetId, type: conn.type || 'HTTP' };
+            // Preserve the optional free-text payload label (Gap 6).
+            if (conn.label) out.label = conn.label;
+            return out;
         }
         // bare id, possibly with a legacy connectionTypes lookup
         return { targetId: conn, type: legacyTypes[conn] || 'HTTP' };

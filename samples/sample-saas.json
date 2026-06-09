@@ -10,7 +10,7 @@
       "technology": "React, TypeScript, Vite",
       "responsibilities": "Render UI, manage client state, call the API.",
       "connections": [
-        { "targetId": 1002, "type": "HTTP" }
+        { "targetId": 1002, "type": "HTTP", "label": "credentials, cart actions" }
       ],
       "dependencies": [],
       "visible": true,
@@ -315,6 +315,47 @@
           "locked": false
         }
       ]
+    },
+    {
+      "id": 1008,
+      "name": "Customer",
+      "type": "Actor",
+      "status": "Active",
+      "description": "End user of the platform. External actor — not infrastructure we own or pay for.",
+      "technology": "Web browser",
+      "responsibilities": "Signs in, uses the app, completes purchases.",
+      "connections": [
+        { "targetId": 1001, "type": "HTTP", "label": "HTTPS, no PII in URL" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "substacks": []
+    },
+    {
+      "id": 1009,
+      "name": "Analytics Pipeline",
+      "type": "Backend",
+      "status": "Planned",
+      "description": "Future: stream product + usage events to a warehouse for reporting. Designed, not yet built.",
+      "technology": "Cloudflare Pipelines → warehouse (planned)",
+      "responsibilities": "Capture events, batch to storage, feed dashboards.",
+      "connections": [
+        { "targetId": 1006, "type": "Database" }
+      ],
+      "dependencies": [],
+      "visible": true,
+      "locked": false,
+      "costModel": {
+        "currency": "USD",
+        "period": "month",
+        "fixedCost": 35,
+        "fixedCostDescription": "Projected warehouse + pipeline cost",
+        "variableCost": 0,
+        "variableUnit": "per-request",
+        "notes": "Roadmap item — excluded from current-state cost."
+      },
+      "substacks": []
     }
   ],
   "usePaths": [

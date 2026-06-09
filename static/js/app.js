@@ -965,6 +965,12 @@ function toggleConnection(targetId, isConnected, connectionType = 'HTTP') {
     if (typeSelect) {
         typeSelect.disabled = !isConnected;
     }
+
+    // Show/hide the connection label input to match connected state.
+    const labelInput = document.getElementById(`label-${targetId}`);
+    if (labelInput) {
+        labelInput.style.display = isConnected ? '' : 'none';
+    }
     
     if (currentView === 'diagram') {
         renderDiagram();
@@ -1011,6 +1017,36 @@ function updateConnectionType(targetId, newType) {
     const typeSelect = document.getElementById(`type-${targetId}`);
     if (typeSelect) {
         typeSelect.value = newType;
+    }
+}
+
+/**
+ * Update the free-text label/payload on a connection ("what flows here").
+ * Renders on the diagram edge and in the connection tooltip (Gap 6).
+ */
+function updateConnectionLabel(targetId, label) {
+    const currentLayer = inSubstack
+        ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
+        : project.layers[selectedLayerIndex];
+    if (!currentLayer.connections) return;
+
+    const allLayers = getAllLayers();
+    const targetLayer = allLayers.find(l => l.id == targetId);
+    if (targetLayer) targetId = targetLayer.id;
+
+    currentLayer.connections = currentLayer.connections.map(c =>
+        typeof c === 'object' ? c : { targetId: c, type: 'HTTP' }
+    );
+
+    const conn = currentLayer.connections.find(c => c.targetId == targetId);
+    if (!conn) return;
+
+    const trimmed = (label || '').trim();
+    if (trimmed) conn.label = trimmed; else delete conn.label;
+
+    saveProject();
+    if (currentView === 'diagram') {
+        renderDiagram();
     }
 }
 

@@ -198,10 +198,15 @@ function renderLayers() {
         ` : '';
         const safeName = escapeHtml(layer.name);
         const displayName = layer.name.length > 20 ? safeName : `<span style="white-space: nowrap;">${safeName}</span>`;
+        const future = (typeof isFutureStatus === 'function') && isFutureStatus(layer.status);
+        const statusBadge = (layer.status && layer.status !== 'Active') ? `
+            <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 3px; ${future ? 'background: rgba(245,158,11,0.2); color: #f59e0b;' : 'background: rgba(148,163,184,0.2); color: #94a3b8;'}">${escapeHtml(layer.status)}</span>
+        ` : '';
         label.innerHTML = `
             <div class="label-name" style="max-width: 300px; word-wrap: break-word; white-space: normal; line-height: 1.3;">${displayName}</div>
             <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
                 <div class="label-type">${escapeHtml(layer.type)}</div>
+                ${statusBadge}
                 ${substackPreview}
             </div>
         `;

@@ -89,9 +89,9 @@ function renderLayerDetails(layer) {
                         <div class="detail-section detail-section-flush">
                             <div class="detail-label">Status</div>
                             <select class="detail-select" onchange="updateLayerField('status', this.value)">
-                                <option value="Active" ${layer.status === 'Active' ? 'selected' : ''}>Active</option>
-                                <option value="Inactive" ${layer.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
-                                <option value="Deprecated" ${layer.status === 'Deprecated' ? 'selected' : ''}>Deprecated</option>
+                                ${LAYER_STATUSES.map(s =>
+                                    `<option value="${escapeHtml(s)}" ${layer.status === s ? 'selected' : ''}>${escapeHtml(s)}</option>`
+                                ).join('')}
                             </select>
                         </div>
                     </div>
@@ -143,21 +143,30 @@ function renderLayerDetails(layer) {
                             ${availableTargets.map(target => {
                                 const existingConnection = normalizedConnections.find(c => c.targetId == target.id);
                                 const connectionType = existingConnection ? existingConnection.type : 'HTTP';
+                                const connectionLabel = existingConnection && existingConnection.label ? existingConnection.label : '';
                                 const tid = escapeJsString(target.id);
                                 return `
-                                <div class="connection-item" data-search="${escapeHtml((target.name + target.type).toLowerCase())}">
-                                    <input type="checkbox" ${existingConnection ? 'checked' : ''}
-                                           onchange="toggleConnection('${tid}', this.checked, '${escapeJsString(connectionType)}')">
-                                    <div class="connection-item-main">
-                                        <div class="connection-item-name">${escapeHtml(target.name)}</div>
-                                        <div class="connection-item-type">${escapeHtml(target.type)}${target.isSubstack ? ' • substack' : ''}</div>
+                                <div class="connection-item connection-item-stacked" data-search="${escapeHtml((target.name + target.type).toLowerCase())}">
+                                    <div class="connection-item-row">
+                                        <input type="checkbox" ${existingConnection ? 'checked' : ''}
+                                               onchange="toggleConnection('${tid}', this.checked, '${escapeJsString(connectionType)}')">
+                                        <div class="connection-item-main">
+                                            <div class="connection-item-name">${escapeHtml(target.name)}</div>
+                                            <div class="connection-item-type">${escapeHtml(target.type)}${target.isSubstack ? ' • substack' : ''}</div>
+                                        </div>
+                                        <select id="type-${escapeHtml(target.id)}" class="detail-select detail-select-sm"
+                                                onchange="updateConnectionType('${tid}', this.value)" ${!existingConnection ? 'disabled' : ''}>
+                                            ${Object.entries(CONNECTION_TYPES).map(([key, val]) =>
+                                                `<option value="${escapeHtml(key)}" ${connectionType === key ? 'selected' : ''}>${escapeHtml(val.label)}</option>`
+                                            ).join('')}
+                                        </select>
                                     </div>
-                                    <select id="type-${escapeHtml(target.id)}" class="detail-select detail-select-sm"
-                                            onchange="updateConnectionType('${tid}', this.value)" ${!existingConnection ? 'disabled' : ''}>
-                                        ${Object.entries(CONNECTION_TYPES).map(([key, val]) =>
-                                            `<option value="${escapeHtml(key)}" ${connectionType === key ? 'selected' : ''}>${escapeHtml(val.label)}</option>`
-                                        ).join('')}
-                                    </select>
+                                    <input type="text" class="detail-input connection-label-input"
+                                           id="label-${escapeHtml(target.id)}"
+                                           placeholder="What flows here? (e.g. custom_id + amount only)"
+                                           value="${escapeHtml(connectionLabel)}"
+                                           ${!existingConnection ? 'style="display:none;"' : ''}
+                                           onchange="updateConnectionLabel('${tid}', this.value)">
                                 </div>
                             `}).join('')}
                         </div>
