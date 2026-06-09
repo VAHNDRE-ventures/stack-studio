@@ -122,10 +122,17 @@ function migrateUsePathFormat(usePath, project) {
     usePath.totalCost = totalCost;
     usePath.currency = usePath.currency || 'USD';
     usePath.period = usePath.period || 'month';
-    
-    // Keep old fields for backward compatibility during transition
-    // usePath.layersInvolved = undefined;
-    // usePath.avgCallsPerLayer = undefined;
+
+    // Ensure the editing UI's fields always exist, even for authored/curated
+    // actions that only specified layersInvolved. avgCallsPerLayer defaults to
+    // 1 call per involved layer.
+    if (!Array.isArray(usePath.layersInvolved)) usePath.layersInvolved = [];
+    if (!usePath.avgCallsPerLayer || typeof usePath.avgCallsPerLayer !== 'object') {
+        usePath.avgCallsPerLayer = {};
+    }
+    usePath.layersInvolved.forEach(id => {
+        if (typeof usePath.avgCallsPerLayer[id] !== 'number') usePath.avgCallsPerLayer[id] = 1;
+    });
     
     return usePath;
 }

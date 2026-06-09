@@ -1875,18 +1875,20 @@ function renderActionsListContent(container) {
         return;
     }
     
-    // Apply search and layer type filters
+    // Apply search and layer type filters (defensive against malformed actions
+    // so one bad entry can't blank the whole list).
     const searchLower = window.actionsFilterState.searchText.toLowerCase();
     const filterBySearch = (item) => {
         if (!searchLower) return true;
-        return item.name.toLowerCase().includes(searchLower) || 
+        return (item.name || '').toLowerCase().includes(searchLower) ||
                (item.description && item.description.toLowerCase().includes(searchLower));
     };
     
     const filterByLayerTypes = (item) => {
         if (window.actionsFilterState.selectedLayerTypes.length === 0) return true;
+        const involved = item.layersInvolved || [];
         return window.actionsFilterState.selectedLayerTypes.every(type => {
-            return item.layersInvolved.some(layerId => {
+            return involved.some(layerId => {
                 const layer = getAllLayers().find(l => l.id === layerId);
                 return layer && layer.type === type;
             });
@@ -1912,15 +1914,18 @@ function renderActionsListContent(container) {
         return;
     }
     
-    // Separate by source (manual first, then imported)
-    const manualAll = filteredAll.filter(p => !p.source || p.source === 'manual');
+    // Separate by source. Anything not explicitly "imported" is treated as
+    // manual/curated, so unknown source values (e.g. "curated" from authored
+    // projects) still appear instead of silently vanishing.
     const importedAll = filteredAll.filter(p => p.source === 'imported');
+    const manualAll = filteredAll.filter(p => p.source !== 'imported');
     
-    // Separate actions and paths within each source
-    const manualActions = manualAll.filter(p => p.layersInvolved.length === 1);
-    const manualPaths = manualAll.filter(p => p.layersInvolved.length > 1);
-    const importedActions = importedAll.filter(p => p.layersInvolved.length === 1);
-    const importedPaths = importedAll.filter(p => p.layersInvolved.length > 1);
+    // Separate actions and paths within each source (guard missing arrays)
+    const stepCount = (p) => (p.layersInvolved || []).length;
+    const manualActions = manualAll.filter(p => stepCount(p) <= 1);
+    const manualPaths = manualAll.filter(p => stepCount(p) > 1);
+    const importedActions = importedAll.filter(p => stepCount(p) <= 1);
+    const importedPaths = importedAll.filter(p => stepCount(p) > 1);
     
     // Apply sorting
     const sortBy = window.actionsFilterState.sortBy;
@@ -2938,7 +2943,7 @@ function populateAssemblyPath(path) {
     path.layersInvolved.forEach((layerId, index) => {
         const layer = getAllLayers().find(l => l.id === layerId);
         const layerName = layer ? layer.name : `Layer ${layerId}`;
-        const calls = path.avgCallsPerLayer[layerId] || 1;
+        const calls = (path.avgCallsPerLayer && path.avgCallsPerLayer[layerId]) || 1;
         
         const stepDiv = document.createElement('div');
         stepDiv.style.cssText = `
@@ -3012,6 +3017,7 @@ function populateAssemblyPath(path) {
  */
 function addLayerToPath(path, layerId) {
     if (!path.layersInvolved.includes(layerId)) {
+        if (!path.avgCallsPerLayer) path.avgCallsPerLayer = {};
         path.layersInvolved.push(layerId);
         path.avgCallsPerLayer[layerId] = 1;
         saveProject();  // assembly edits must persist, not just name/description
@@ -3026,7 +3032,7 @@ function addLayerToPath(path, layerId) {
  */
 function removeLayerFromPath(path, layerId) {
     path.layersInvolved = path.layersInvolved.filter(id => id !== layerId);
-    delete path.avgCallsPerLayer[layerId];
+    if (path.avgCallsPerLayer) delete path.avgCallsPerLayer[layerId];
     saveProject();
     populateAssemblyLayers(path, getAllLayers());
     populateAssemblyPath(path);
@@ -3039,6 +3045,7 @@ function removeLayerFromPath(path, layerId) {
 function updateLayerCalls(pathId, layerId, value) {
     const path = project.usePaths.find(p => p.id === pathId);
     if (path) {
+        if (!path.avgCallsPerLayer) path.avgCallsPerLayer = {};
         path.avgCallsPerLayer[layerId] = parseInt(value) || 1;
         saveProject();
     }

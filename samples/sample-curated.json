@@ -1,0 +1,26 @@
+{
+  "name": "Curated Actions Test",
+  "layers": [
+    { "id": 1, "name": "Web", "type": "Frontend", "status": "Active", "connections": [{ "targetId": 2, "type": "HTTP" }], "costModel": { "currency": "USD", "period": "month", "fixedCost": 20, "variableCost": 0, "variableUnit": "per-request" }, "substacks": [] },
+    { "id": 2, "name": "API", "type": "API", "status": "Active", "connections": [{ "targetId": 3, "type": "HTTP" }], "costModel": { "currency": "USD", "period": "month", "fixedCost": 5, "variableCost": 0, "variableUnit": "per-request" }, "substacks": [] },
+    { "id": 3, "name": "DB", "type": "Database", "status": "Active", "connections": [], "costModel": { "currency": "USD", "period": "month", "fixedCost": 90, "variableCost": 0, "variableUnit": "per-write" }, "substacks": [] }
+  ],
+  "usePaths": [
+    {
+      "id": "flow-1",
+      "name": "Login",
+      "description": "Curated flow with no avgCallsPerLayer (R&O shape).",
+      "layersInvolved": [1, 2, 3],
+      "notes": "x",
+      "source": "curated",
+      "actionCost": { "resourceConsumption": {}, "usageAssumptions": { "estimatedCallsPerMonth": 1000, "estimatedUsersPerMonth": 100, "callsPerUser": 10 } }
+    },
+    {
+      "id": "flow-2",
+      "name": "Single Touch",
+      "description": "One-layer curated action.",
+      "layersInvolved": [2],
+      "source": "curated"
+    }
+  ]
+}
