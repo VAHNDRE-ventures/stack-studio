@@ -85,6 +85,20 @@ setTimeout(async () => {
         });
         r.forwardCount = fwd;
         r.forwardPointRight = fwd === 0 || fwdRight === fwd;
+
+        // Auto-arrange overrides manual placements: set a bogus saved position,
+        // arrange, and confirm the node moved off it (and diagramPositions was
+        // refreshed, not left stale).
+        const nid = String(project.layers[0].id);
+        project.diagramPositions = { [nid]: { x: -9999, y: -9999 } };
+        recalculateLayout();              // honors saved → node at -9999
+        const honored = Math.abs(nodePositions[nid].x - (-9999)) < 1;
+        arrangeButtonClick();             // should override
+        const afterX = nodePositions[nid].x;
+        r.arrangeOverrides = honored && Math.abs(afterX - (-9999)) > 1;
+        // diagramPositions refreshed to the arranged spot (not the bogus one).
+        const saved = project.diagramPositions[nid];
+        r.arrangePersisted = saved && Math.abs(saved.x - afterX) < 1;
     } catch(e) { window.__errors.push('script: ' + e.message); }
     r.errors = window.__errors;
     const out = document.createElement('pre'); out.id='out'; out.textContent = JSON.stringify(r); document.body.appendChild(out);
@@ -114,6 +128,8 @@ log(r.groupOverlaps === 0, `no overlapping top-level group boxes (${r.groupOverl
 log(r.allRouted === true, 'every stack edge has an orthogonal route');
 log(r.axisAligned === true, 'stack routes are axis-aligned (right angles)');
 log(r.forwardPointRight === true, `forward edges point rightward (${r.forwardCount} forward)`);
+log(r.arrangeOverrides === true, 'auto-arrange overrides manual placement');
+log(r.arrangePersisted === true, 'auto-arrange persists the new positions');
 
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);

@@ -120,9 +120,10 @@ the migration rules.
     Alt+drag a node grabs its entire subtree (node + all descendants) as one
     movable group. Selected nodes get a dashed highlight ring; Escape or an
     empty-canvas click clears the selection.
-  - **Auto-arrange** (↻) relays out the stack and then pushes overlapping
-    top-level group boxes apart so the dashed group borders never intersect.
-    It's a single undo step and doesn't disturb the layout unless you press it.
+  - **Auto-arrange** (↻) relays out the diagram from scratch into a compact
+    grid (top-level blocks packed close to a square aspect, no group-box
+    overlaps). It **overrides any manual placements** — it's a single undo
+    step, so Ctrl+Z restores your hand-arranged layout if you prefer it.
   - **Export** (⬇) saves an ultra-high-resolution PNG **plus a companion
     Markdown legend** (`<name>_legend.md`) documenting every node — name, type,
     status, technology, description, and outgoing connections — grouped by

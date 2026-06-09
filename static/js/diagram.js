@@ -319,13 +319,13 @@ function handleCanvasWheel(e) {
     renderDiagram();
 }
 
-function recalculateLayout() {
+function recalculateLayout(ignoreSaved = false) {
     nodePositions = {};
 
     // Flow mode uses a completely different (ranked, banded) layout.
     if (diagramLayoutMode === 'flow') {
         computeFlowLayout();
-        applySavedPositions();
+        if (!ignoreSaved) applySavedPositions();
         return;
     }
 
@@ -519,15 +519,103 @@ function recalculateLayout() {
 
     project.layers.forEach(layer => placeChildren(layer));
 
-    // Keep top-level group boxes from overlapping in the default layout (so it
-    // reads cleanly on load, not just after the arrange button). Non-persisting
-    // — manual drags below still take precedence via applySavedPositions.
+    // COMPACTION: pack each top-level block (a layer + its whole subtree) into
+    // a tidy grid instead of stacking them in tall dependency columns and then
+    // shoving overlaps apart. This keeps connections intact while killing the
+    // dead space that made big stacks absurdly tall. Blocks are ordered by
+    // dependency level (so flow still reads roughly left→right / top→bottom),
+    // then laid row-major into a grid whose width targets a ~4:3 aspect.
     const anyGroups = project.layers.some(l => l.substacks && l.substacks.length);
-    if (anyGroups) separateTopLevelGroups(false);
+    packStackBlocks(levels);
 
     // Restore any manually-saved positions over the computed defaults so a
     // user's drag arrangement survives view switches and reloads.
-    applySavedPositions();
+    if (!ignoreSaved) applySavedPositions();
+}
+
+/**
+ * Pack top-level blocks (each = a layer + its full subtree, already laid out
+ * relative to itself) into a compact grid. Each block is translated as a rigid
+ * unit so internal substack positions / orthogonal edges are preserved. Blocks
+ * are ordered by dependency level, then placed row-major; a row wraps when its
+ * width would exceed a target derived from total block area (≈4:3 aspect).
+ */
+function packStackBlocks(levels) {
+    const layers = (project && project.layers) ? project.layers : [];
+    if (!layers.length) return;
+
+    const GAP = 70;              // gap between block group-boxes
+    // Top-level group boxes extend padH/padV beyond their node bounding box
+    // (see drawGroupBox depth 0). Pad each block by that so packed blocks'
+    // *boxes* (not just their nodes) don't overlap.
+    const PAD_H = 120;           // matches drawGroupBox padH at depth 0
+    const PAD_V = 80;            // matches drawGroupBox padV at depth 0
+
+    // Bounding box of a top-level layer's whole subtree from nodePositions.
+    const blockBox = (layer) => {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        const acc = (n) => {
+            const p = nodePositions[n.id];
+            if (p) {
+                minX = Math.min(minX, p.x - NODE_WIDTH / 2);
+                maxX = Math.max(maxX, p.x + NODE_WIDTH / 2);
+                minY = Math.min(minY, p.y - NODE_HEIGHT / 2);
+                maxY = Math.max(maxY, p.y + NODE_HEIGHT / 2);
+            }
+            if (n.substacks) n.substacks.forEach(acc);
+        };
+        acc(layer);
+        if (minX === Infinity) return null;
+        return { minX, maxX, minY, maxY, w: maxX - minX, h: maxY - minY };
+    };
+
+    // Build blocks, ordered by dependency level then declaration order.
+    const blocks = [];
+    layers.forEach((layer, i) => {
+        const box = blockBox(layer);
+        if (!box) return;
+        blocks.push({ layer, box, level: (levels && levels[layer.id]) || 0, ord: i });
+    });
+    if (!blocks.length) return;
+    blocks.sort((a, b) => (a.level - b.level) || (a.ord - b.ord));
+
+    // Target row width ≈ sqrt(totalArea * aspect), aspect ~1.4 (landscape).
+    let totalArea = 0, maxBlockW = 0;
+    blocks.forEach(b => {
+        const w = b.box.w + PAD_H * 2 + GAP;
+        const h = b.box.h + PAD_V * 2 + GAP;
+        totalArea += w * h;
+        maxBlockW = Math.max(maxBlockW, w);
+    });
+    const targetRowWidth = Math.max(maxBlockW, Math.sqrt(totalArea * 1.4));
+
+    // Row-major placement: translate each block so its padded bbox top-left
+    // lands at the running cursor; wrap when the row would exceed the target.
+    const translateBlock = (layer, dx, dy) => {
+        const move = (n) => {
+            const p = nodePositions[n.id];
+            if (p) { p.x += dx; p.y += dy; }
+            if (n.substacks) n.substacks.forEach(move);
+        };
+        move(layer);
+    };
+
+    let cursorX = 0, cursorY = 0, rowHeight = 0;
+    blocks.forEach(b => {
+        const bw = b.box.w + PAD_H * 2;
+        const bh = b.box.h + PAD_V * 2;
+        if (cursorX > 0 && cursorX + bw > targetRowWidth) {
+            cursorX = 0;
+            cursorY += rowHeight + GAP;
+            rowHeight = 0;
+        }
+        // Desired top-left for this block's padded box.
+        const targetMinX = cursorX + PAD_H;
+        const targetMinY = cursorY + PAD_V;
+        translateBlock(b.layer, targetMinX - b.box.minX, targetMinY - b.box.minY);
+        cursorX += bw + GAP;
+        rowHeight = Math.max(rowHeight, bh);
+    });
 }
 
 /**
@@ -957,10 +1045,14 @@ function refreshDiagramLayout(fit = false) {
  */
 function autoArrangeDiagram() {
     if (!canvas || !ctx) return;
-    recalculateLayout();
-    // Group separation only applies to the composition (stack) layout; flow
-    // mode is already collision-free by construction (ranked + spread).
-    if (diagramLayoutMode !== 'flow') separateTopLevelGroups();
+    // Auto-arrange OVERRIDES manual placements: drop saved positions so the
+    // computed layout isn't immediately overwritten by applySavedPositions,
+    // and clear them off the project so the fresh arrangement is what persists.
+    // (This is undoable — arrangeButtonClick snapshots the project first.)
+    if (project && project.diagramPositions) project.diagramPositions = {};
+    recalculateLayout(true);
+    // Persist the freshly arranged positions so they survive reload / export.
+    if (typeof persistNodePositions === 'function') persistNodePositions();
     zoomToFit();
     renderDiagram();
 }
