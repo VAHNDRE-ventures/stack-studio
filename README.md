@@ -31,6 +31,14 @@ It offers four synchronized views over a single project model:
 
 ---
 
+![Actions view](screenshot-actions.png)
+
+---
+
+![Cost view](screenshot-cost.png)
+
+---
+
 ## Run it
 
 Fully client-side. Serve the folder with any static server:
