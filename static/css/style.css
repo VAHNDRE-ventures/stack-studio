@@ -257,13 +257,14 @@ body {
 
 .layer-label {
     position: absolute;
-    left: 250px;
+    left: 210px;
     opacity: 0;
     transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
-    /* Roomy but bounded. Sits ~400px from the pane's left edge; the label's
-       containing block is the 200px card, so size in viewport units. */
-    max-width: clamp(220px, 30vw, 460px);
+    /* Roomy but bounded. Sits beside the diamond; widened so multi-word stack
+       names (e.g. "High-Risk Merchant + LegitScript") wrap on far fewer lines.
+       Sized in viewport units since the containing block is the 200px card. */
+    max-width: clamp(280px, 36vw, 560px);
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -274,7 +275,7 @@ body {
 }
 
 .label-name {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 600;
     /* Wrap on word boundaries only — never mid-word (was "Cloudflar/e"). */
     white-space: normal;
@@ -745,7 +746,13 @@ body {
 .detail-select-sm {
     font-size: 11px;
     padding: 4px 6px;
-    width: auto;
+    /* In the connections row this select sits next to the layer name. A
+       <select> takes its widest <option> as preferred width, which (with no
+       cap) consumed the whole row and collapsed the name to 0px. Cap + don't
+       grow so the name keeps its space. */
+    width: 116px;
+    max-width: 116px;
+    flex: 0 0 auto;
 }
 
 .detail-textarea {
@@ -905,8 +912,8 @@ body {
 }
 
 .connection-item-main {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 auto;
+    min-width: 80px;
 }
 
 .connection-item-name {

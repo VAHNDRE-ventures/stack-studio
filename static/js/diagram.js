@@ -1408,26 +1408,71 @@ function renderDiagramWithHover() {
 
     ctx.restore();
 
-    // Action-path banner (drawn in screen space, after restore).
-    if (actionPath) {
-        const label = `Action path: ${actionPath.name}`;
-        ctx.save();
-        ctx.font = '600 13px sans-serif';
-        const tw = ctx.measureText(label).width;
-        const bw = tw + 28;
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 1;
-        const bx = 16, by = 16, bh = 30;
-        if (ctx.roundRect) {
-            ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
-        } else {
-            ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
-        }
-        ctx.fillStyle = '#bfdbfe';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, bx + 14, by + bh / 2);
-        ctx.textBaseline = 'alphabetic';
-        ctx.restore();
+    ctx.restore();
+
+    // Action-path selector is an HTML overlay (a <select>), updated here so it
+    // reflects the current highlight. Canvas can't host a real dropdown.
+    updateActionPathSelector(actionPath);
+}
+
+/**
+ * Build/refresh the action-path dropdown overlaid on the diagram. Lets the user
+ * switch the highlighted action or clear it. Lives in the diagram-view
+ * container (top-left), above the canvas.
+ */
+function updateActionPathSelector(actionPath) {
+    const container = document.getElementById('diagram-view');
+    if (!container) return;
+
+    const paths = (project && project.usePaths) ? project.usePaths : [];
+
+    let wrap = document.getElementById('action-path-selector');
+
+    // No actions defined → no selector.
+    if (paths.length === 0) {
+        if (wrap) wrap.remove();
+        return;
+    }
+
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'action-path-selector';
+        wrap.style.cssText = 'position:absolute; top:16px; left:16px; z-index:100; display:flex; align-items:center; gap:6px; background:rgba(15,23,42,0.92); border:1px solid #3b82f6; border-radius:6px; padding:5px 8px; box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+
+        const label = document.createElement('span');
+        label.textContent = 'Action path:';
+        label.style.cssText = 'color:#94a3b8; font-size:12px; white-space:nowrap;';
+        wrap.appendChild(label);
+
+        const sel = document.createElement('select');
+        sel.id = 'action-path-select';
+        sel.style.cssText = 'background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; padding:4px 8px; font-size:12px; max-width:260px; cursor:pointer;';
+        sel.onchange = (e) => {
+            const v = e.target.value;
+            if (!v) {
+                if (typeof setHighlightedActionPath === 'function') setHighlightedActionPath(null);
+            } else {
+                const action = (project.usePaths || []).find(p => String(p.id) === v);
+                if (action && typeof setHighlightedActionPath === 'function') setHighlightedActionPath(action);
+            }
+        };
+        wrap.appendChild(sel);
+
+        container.appendChild(wrap);
+    }
+
+    // Rebuild options only when the set of actions or the selection changes,
+    // so we don't disrupt an open dropdown on every render (hover/drag).
+    const sel = wrap.querySelector('#action-path-select');
+    const currentId = actionPath && actionPath.name
+        ? (paths.find(p => p.name === actionPath.name) || {}).id
+        : '';
+    const signature = paths.map(p => `${p.id}:${p.name}`).join('|') + '#' + (currentId || '');
+    if (wrap.dataset.sig !== signature) {
+        wrap.dataset.sig = signature;
+        sel.innerHTML =
+            `<option value="">— none —</option>` +
+            paths.map(p => `<option value="${escapeHtml(String(p.id))}">${escapeHtml(p.name || 'Untitled')}</option>`).join('');
+        sel.value = currentId ? String(currentId) : '';
     }
 }
