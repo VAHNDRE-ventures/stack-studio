@@ -1626,8 +1626,13 @@ function importMermaid() {
                 renderLayers();
                 updateStats();
                 selectLayer(0);
-                // Lay the freshly-imported nodes out and keep groups apart.
-                if (currentView === 'diagram' && typeof autoArrangeDiagram === 'function') {
+                // A Mermaid import is a flow graph (phase-tagged flat nodes), so
+                // default the diagram to Flow layout and arrange it.
+                if (typeof setLayoutMode === 'function' && typeof projectHasGroups === 'function' && projectHasGroups()) {
+                    setLayoutMode('flow');
+                }
+                toggleView('diagram');
+                if (typeof autoArrangeDiagram === 'function') {
                     autoArrangeDiagram();
                 }
             } catch (error) {

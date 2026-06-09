@@ -16,7 +16,8 @@ It offers four synchronized views over a single project model:
   depth) with a breadcrumb in the details panel.
 - **Diagram** — a draggable C4-style architecture diagram with typed, labeled
   connections, recursive substack grouping, snap-to-grid, multi-select group
-  dragging, group-aware auto-arrange, action-path highlighting, and
+  dragging, group-aware auto-arrange, action-path highlighting, two layout
+  modes (**Stack** composition and **Flow** process lanes), and
   ultra-high-resolution PNG export.
 - **Actions** — named request paths traced across layers, with cost-per-operation.
 - **Cost** — a roll-up of per-layer fixed, variable, and percentage-of-value
@@ -125,6 +126,16 @@ the migration rules.
     is exactly the bounding box of every element (nodes + group boxes) plus
     20px padding — no viewport crop or whitespace. Renders at 4× and caps the
     longest side at 12000px to stay within browser limits.
+  - **Layout modes** (the **Flow / Stack** toggle): StackStudio carries two
+    orthogonal kinds of meaning, and the diagram can lay out either way:
+    - **Stack** (composition) — the default. Substacks nest to the right of
+      their parent inside dashed group boxes. Right for architectures where a
+      service *owns* its sub-modules.
+    - **Flow** (process) — a layered top→bottom layout like a Mermaid
+      flowchart. Nodes are ranked by edge direction; nodes sharing a `group`
+      are banded into labeled **phase lanes**; feedback/back-edges are drawn as
+      returns without breaking the ranking. Right for pipelines where data
+      *passes through* stages. A Mermaid import switches here automatically.
 - **File menu**: New, Open (import JSON), **Import Mermaid…** (convert a
   `flowchart`/`graph` definition — see below), Save (export JSON), and
   Templates. Projects auto-save to `localStorage`.
@@ -134,18 +145,21 @@ the migration rules.
 **File → Import Mermaid…** converts a Mermaid `flowchart` / `graph` definition
 into a StackStudio project:
 
-- `subgraph ID["Title"] … end` → a top-level layer; nodes declared inside it
-  become its substacks.
-- bare nodes outside any subgraph → top-level layers.
+- `subgraph ID["Title"] … end` → the subgraph becomes a **phase/lane** (a
+  `group` tag); the nodes inside it stay flat top-level nodes tagged with that
+  group — not nested substacks. (A flowchart is a process graph, not a
+  composition tree, so containment would misrepresent it.)
+- bare nodes outside any subgraph → ungrouped top-level nodes.
 - node shape → layer type, best-effort: `[(db)]` → Database, `{gw}` /
   `{{hex}}` → API, `([stadium])` / `[[subroutine]]` → Core, `((circle))` →
   Actor, `(rounded)` → Backend, `[rect]` → Other.
 - edges (`-->`, `-- text -->`, `-.->`, `==>`), chains (`A --> B --> C`), and
   fan-out (`A --> B & C`) → connections. Dotted edges map to **Async**; edge
-  text becomes the connection label. Subgraph-level edges attach at the layer.
+  text becomes the connection label. A subgraph-level edge (`SRC --> COOKIE`)
+  expands to edges from each member node.
 
-The imported diagram is auto-arranged on load. The converter lives in
-`static/js/mermaid-import.js` and is pure/dependency-free.
+The import opens in **Flow layout** with the subgraphs as phase lanes. The
+converter lives in `static/js/mermaid-import.js` and is pure/dependency-free.
 
 ### Keyboard & navigation
 
@@ -222,6 +236,7 @@ node samples/check-undo.mjs      # headless: field/drag undo, Ctrl+Z inside inpu
 node samples/check-group-drag.mjs # headless: multi-select, group drag, group-aware arrange
 node samples/check-export.mjs    # headless: hi-res PNG export bounds, aspect, restore
 node samples/check-mermaid.mjs   # pure: Mermaid → project conversion (shapes, edges, fan-out)
+node samples/check-flow.mjs      # headless: Flow layout ranks, phase bands, back-edges
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 
@@ -282,9 +297,14 @@ headless test under `samples/`:
   commits the field's edit then runs the app undo (instead of dead-ending in
   the browser's native text-undo).
 - **Mermaid import.** File → Import Mermaid converts a `flowchart`/`graph`
-  definition into a project — subgraphs become layers, their nodes become
-  substacks, node shapes map to types, and edges (incl. chains, fan-out,
-  dotted, and labeled) become typed connections.
+  definition into a project — subgraphs become **phase lanes** (a `group` tag),
+  their nodes stay flat, node shapes map to types, and edges (incl. chains,
+  fan-out, dotted, and labeled) become typed connections.
+- **Flow vs. Stack layout.** The diagram has two layout modes: Stack
+  (composition — substacks nested in group boxes) and Flow (process — nodes
+  ranked top→bottom by edge direction with labeled phase lanes, à la a Mermaid
+  flowchart, with phase-aware ranking so feedback loops don't interleave the
+  lanes). Toggle in the diagram toolbar; persisted per browser.
 - **Sidebar.** Horizontally resizable (persisted), collapse handle glued to
   the panel edge, responsive width.
 - **Stack view fixes.** No ghost-card flash on entry, word-boundary wrapping

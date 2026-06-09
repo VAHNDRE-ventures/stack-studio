@@ -18,6 +18,7 @@ Open imports it. Older documents are upgraded automatically on load (see
   "avgTransactionValue": 49,        // number? — AOV for % costs (default 50)
   "layers": [ Layer, ... ],         // Layer[] — top-level nodes
   "usePaths": [ Action, ... ],      // Action[]? — traced operations
+  "groupOrder": [ "Phase A", ... ], // string[]? — phase/lane order for Flow view
   "diagramPositions": {             // map? — persisted diagram node positions
     "<nodeId>": { "x": 200, "y": 200 }
   }
@@ -30,6 +31,7 @@ Open imports it. Older documents are upgraded automatically on load (see
 | `avgTransactionValue` | number? | Average transaction value used to evaluate percentage-of-value costs. Defaults to `50`. Editable in the Cost dashboard. |
 | `layers` | Layer[] | The stack's top-level nodes. |
 | `usePaths` | Action[]? | Named operations traced through the stack. May be absent. |
+| `groupOrder` | string[]? | Ordered list of phase/lane names (see `Layer.group`). Used by the diagram's **Flow layout** to band phases in a deliberate order when flow ranks tie. Typically set by the Mermaid importer from subgraph declaration order. |
 | `diagramPositions` | object? | `{ nodeId: {x, y} }` — manual node positions from the diagram, so a dragged layout survives reload. Written by node drag, group drag, snap, and auto-arrange. Keys are stringified node ids. |
 
 ---
@@ -51,6 +53,7 @@ breadcrumb.
   "technology": "Express.js",       // string?
   "description": "...",             // string?
   "responsibilities": "...",        // string?
+  "group": "3 · Ingestion",         // string? — phase/lane label (Flow view)
   "connections": [ Connection ],    // Connection[]
   "dependencies": [],               // (number|string)[]? — reserved, unused by UI
   "visible": true,                  // boolean?
@@ -69,6 +72,7 @@ breadcrumb.
 | `technology` | string? | Free text (e.g. `"PostgreSQL 16"`). |
 | `description` | string? | Long-form notes. |
 | `responsibilities` | string? | What the node is responsible for. |
+| `group` | string? | Phase/lane label. Nodes sharing a `group` are banded together in the diagram's **Flow layout** (a process stage like "Ingestion" or "Persistence"). Unlike a substack parent, a group is pure metadata — it creates no node and carries no cost. Set by the Mermaid importer from `subgraph` titles. |
 | `connections` | Connection[] | Outgoing edges. See [Connection](#connection). |
 | `dependencies` | (number\|string)[]? | Reserved; not currently rendered. |
 | `visible` | boolean? | Reserved for show/hide. |

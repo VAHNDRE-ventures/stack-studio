@@ -103,6 +103,28 @@ function snapCoord(v) {
 
 let diagramInitialized = false;
 
+// Diagram layout mode: 'stack' (composition — substacks nested right of their
+// parent, group boxes) or 'flow' (process — nodes ranked top→bottom by edge
+// direction with phase/lane bands, à la a Mermaid flowchart). Persisted.
+let diagramLayoutMode = 'stack';
+
+function loadLayoutModePref() {
+    try {
+        const m = localStorage.getItem('ztack_layout_mode');
+        if (m === 'flow' || m === 'stack') diagramLayoutMode = m;
+    } catch (e) {}
+}
+function saveLayoutModePref() {
+    try { localStorage.setItem('ztack_layout_mode', diagramLayoutMode); } catch (e) {}
+}
+
+// True when the current project looks like a flow graph (any node carries a
+// `group` tag, e.g. a Mermaid import). Used to auto-suggest flow mode.
+function projectHasGroups() {
+    const all = getAllLayers();
+    return all.some(l => l && typeof l.group === 'string' && l.group);
+}
+
 function initDiagramView() {
     canvas = document.getElementById('diagram-canvas');
     ctx = canvas.getContext('2d');
@@ -147,7 +169,8 @@ function addZoomControls() {
     if (document.getElementById('zoom-controls')) return;
 
     loadSnapPrefs();
-    
+    loadLayoutModePref();
+
     const controls = document.createElement('div');
     controls.id = 'zoom-controls';
     controls.style.cssText = 'position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100;';
@@ -156,12 +179,15 @@ function addZoomControls() {
         <button onclick="zoomReset()" title="Reset zoom" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">100%</button>
         <button onclick="zoomOut()" title="Zoom out" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 16px;">\u2212</button>
         <button onclick="zoomToFit()" title="Fit to screen" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Fit</button>
+        <button onclick="toggleLayoutMode()" id="layout-mode-btn" title="Toggle Stack / Flow layout" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Flow</button>
         <button onclick="arrangeButtonClick()" title="Auto-arrange nodes (groups kept apart)" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">\u21BB</button>
         <button onclick="exportDiagramImage(4)" title="Export high-resolution PNG (fits all elements + 20px)" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">\u2B07</button>
     `;
     container.appendChild(controls);
 
-    // Snap-to-grid control: a toggle plus a grid-size picker (2-5px).
+    // Reflect the persisted layout mode on the toggle button.
+    updateLayoutModeButton();
+
     if (!document.getElementById('snap-controls')) {
         const snap = document.createElement('div');
         snap.id = 'snap-controls';
@@ -289,6 +315,13 @@ function handleCanvasWheel(e) {
 
 function recalculateLayout() {
     nodePositions = {};
+
+    // Flow mode uses a completely different (ranked, banded) layout.
+    if (diagramLayoutMode === 'flow') {
+        computeFlowLayout();
+        applySavedPositions();
+        return;
+    }
 
     // Count leaves under a node (min 1) — used to size vertical footprints so
     // deep subtrees don't overlap.
@@ -486,6 +519,239 @@ function recalculateLayout() {
 }
 
 /**
+ * FLOW LAYOUT — a layered directed-graph layout (Sugiyama-style, à la Mermaid
+ * `flowchart TD`). Nodes are flat (substacks, if any, are flattened in); rank
+ * = longest path from a source along forward edges, so the diagram reads
+ * top→bottom in flow order. Within a rank, nodes are grouped by their `group`
+ * (phase/lane) and ordered by the barycenter of their predecessors to reduce
+ * edge crossings. Back-edges (cycles / feedback like Plan→Store→Plan) don't
+ * affect ranking — they're just drawn as return edges by the normal renderer.
+ *
+ * Writes into nodePositions and stashes the computed phase bands on
+ * `flowBands` for the renderer.
+ */
+let flowBands = [];   // [{ name, top, bottom, color }] in world coords (flow mode)
+
+function computeFlowLayout() {
+    flowBands = [];
+    const all = getAllLayers();
+    if (all.length === 0) return;
+
+    const ids = all.map(l => String(l.id));
+    const idSet = new Set(ids);
+    const nodeById = {};
+    all.forEach(l => { nodeById[String(l.id)] = l; });
+
+    // Forward adjacency (only edges to real nodes).
+    const out = {};
+    const indeg = {};
+    ids.forEach(id => { out[id] = []; indeg[id] = 0; });
+    all.forEach(l => {
+        const src = String(l.id);
+        (l.connections || []).forEach(c => {
+            const tgt = String(typeof c === 'object' ? c.targetId : c);
+            if (idSet.has(tgt) && tgt !== src) { out[src].push(tgt); indeg[tgt]++; }
+        });
+    });
+
+    // Rank by longest path from sources, ignoring back-edges via DFS coloring
+    // so cycles don't loop forever. rank[v] = max over forward preds of rank+1.
+    const rank = {};
+    const state = {}; // 0=unvisited,1=in-progress,2=done
+    ids.forEach(id => { rank[id] = 0; state[id] = 0; });
+
+    function dfs(u) {
+        state[u] = 1;
+        out[u].forEach(v => {
+            if (state[v] === 1) return; // back-edge — skip for ranking
+            if (rank[v] < rank[u] + 1) rank[v] = rank[u] + 1;
+            if (state[v] === 0) dfs(v);
+            else if (state[v] === 2) {
+                // Already ranked; if our path makes it deeper, propagate.
+                if (rank[v] < rank[u] + 1) { rank[v] = rank[u] + 1; dfs(v); }
+            }
+        });
+        state[u] = 2;
+    }
+    // Start from true sources (indeg 0) first, then any unvisited (cycle roots).
+    ids.filter(id => indeg[id] === 0).forEach(id => { if (state[id] === 0) dfs(id); });
+    ids.forEach(id => { if (state[id] === 0) dfs(id); });
+
+    // Phase-aware rank flooring: when nodes carry `group` tags (a flow import),
+    // keep each phase in its own band of ranks by flooring every node's rank to
+    // its phase ordinal. This stops feedback loops (write-back → sources) from
+    // interleaving phases and makes the bands disjoint, which reads far cleaner.
+    const groupOrderArr = (project && Array.isArray(project.groupOrder)) ? project.groupOrder : [];
+    const phaseIndex = g => groupOrderArr.indexOf(g);
+    const hasPhases = groupOrderArr.length > 0 && ids.some(id => phaseIndex(nodeById[id].group) >= 0);
+    if (hasPhases) {
+        // Map each used phase ordinal to a contiguous "phase rank" so phases
+        // with no nodes don't leave gaps, and within-phase forward edges still
+        // add sub-ranks.
+        const usedPhases = [...new Set(ids.map(id => phaseIndex(nodeById[id].group)).filter(i => i >= 0))].sort((a, b) => a - b);
+        const phaseBase = {};
+        let base = 0;
+        // Leave room inside each phase for its own internal depth.
+        usedPhases.forEach(pi => {
+            phaseBase[pi] = base;
+            // internal depth = max forward chain length among this phase's nodes
+            const members = ids.filter(id => phaseIndex(nodeById[id].group) === pi);
+            const localMax = members.reduce((mx, id) => Math.max(mx, rank[id]), 0);
+            const localMin = members.reduce((mn, id) => Math.min(mn, rank[id]), Infinity);
+            const span = Number.isFinite(localMin) ? (localMax - localMin) : 0;
+            base += span + 1;
+        });
+        ids.forEach(id => {
+            const pi = phaseIndex(nodeById[id].group);
+            if (pi >= 0) {
+                const members = ids.filter(x => phaseIndex(nodeById[x].group) === pi);
+                const localMin = members.reduce((mn, x) => Math.min(mn, rank[x]), Infinity);
+                rank[id] = phaseBase[pi] + (rank[id] - localMin);
+            }
+        });
+    }
+
+    // Bucket nodes by rank.
+    const ranks = {};
+    let maxRank = 0;
+    ids.forEach(id => {
+        const r = rank[id];
+        (ranks[r] = ranks[r] || []).push(id);
+        if (r > maxRank) maxRank = r;
+    });
+
+    // Order within each rank: primarily by group (using project.groupOrder when
+    // present), secondarily by barycenter of already-placed predecessors to cut
+    // crossings. Several sweeps refine the barycenter.
+    const groupOrder = (project && Array.isArray(project.groupOrder)) ? project.groupOrder : [];
+    const groupRank = g => {
+        const i = groupOrder.indexOf(g);
+        return i === -1 ? (g ? 500 : 999) : i;   // ungrouped sorts last
+    };
+    const orderPos = {}; // id → index within its rank
+
+    const sortRank = (r, useBary) => {
+        const arr = ranks[r];
+        if (!arr || !arr.length) return;
+        arr.sort((a, b) => {
+            const ga = groupRank(nodeById[a].group), gb = groupRank(nodeById[b].group);
+            if (ga !== gb) return ga - gb;
+            if (useBary) {
+                const ba = baryOf(a), bb = baryOf(b);
+                if (ba !== bb) return ba - bb;
+            }
+            return nodeById[a].name.localeCompare(nodeById[b].name);
+        });
+        arr.forEach((id, i) => { orderPos[id] = i; });
+    };
+    // Barycenter = average order index of forward predecessors in rank-1.
+    const preds = {};
+    ids.forEach(id => { preds[id] = []; });
+    Object.keys(out).forEach(u => out[u].forEach(v => { if (rank[v] === rank[u] + 1) preds[v].push(u); }));
+    const baryOf = (id) => {
+        const ps = preds[id];
+        if (!ps.length) return orderPos[id] != null ? orderPos[id] : 0;
+        let s = 0, n = 0;
+        ps.forEach(p => { if (orderPos[p] != null) { s += orderPos[p]; n++; } });
+        return n ? s / n : 0;
+    };
+    for (let r = 0; r <= maxRank; r++) sortRank(r, false);
+    for (let pass = 0; pass < 4; pass++) {
+        for (let r = 1; r <= maxRank; r++) sortRank(r, true);
+    }
+
+    // Place nodes. Vertical ranks (top→bottom), horizontal spread within rank.
+    const RANK_GAP = 200;     // vertical distance between ranks
+    const COL_GAP = 90;       // horizontal gap between nodes in a rank
+    const colStep = NODE_WIDTH + COL_GAP;
+    const widestRank = Math.max(...Object.values(ranks).map(a => a.length), 1);
+    const totalWidth = widestRank * colStep;
+
+    for (let r = 0; r <= maxRank; r++) {
+        const arr = ranks[r] || [];
+        const rowWidth = arr.length * colStep;
+        const startX = (totalWidth - rowWidth) / 2 + colStep / 2;
+        const y = 200 + r * (NODE_HEIGHT + RANK_GAP);
+        arr.forEach((id, i) => {
+            nodePositions[id] = { x: startX + i * colStep, y };
+        });
+    }
+
+    // Compute phase bands: for each group, the min/max Y of its members,
+    // padded. Bands span the full content width so they read as lanes.
+    const groups = {};
+    all.forEach(l => {
+        const g = l.group;
+        if (!g) return;
+        const p = nodePositions[String(l.id)];
+        if (!p) return;
+        const b = groups[g] || (groups[g] = { name: g, top: Infinity, bottom: -Infinity, minX: Infinity, maxX: -Infinity });
+        b.top = Math.min(b.top, p.y - NODE_HEIGHT / 2);
+        b.bottom = Math.max(b.bottom, p.y + NODE_HEIGHT / 2);
+        b.minX = Math.min(b.minX, p.x - NODE_WIDTH / 2);
+        b.maxX = Math.max(b.maxX, p.x + NODE_WIDTH / 2);
+    });
+    const orderedGroupNames = Object.keys(groups).sort((a, b) => groupRank(a) - groupRank(b));
+    flowBands = orderedGroupNames.map((name, i) => {
+        const b = groups[name];
+        const palette = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#ef4444', '#64748b'];
+        return {
+            name,
+            top: b.top - 28,
+            bottom: b.bottom + 28,
+            color: palette[i % palette.length]
+        };
+    });
+}
+
+/**
+ * Draw the flow-mode phase bands: full-width horizontal lanes behind the nodes,
+ * each tinted with its group color and labeled at the left. Bands are computed
+ * by computeFlowLayout into `flowBands` (world coords). They span the full
+ * content width so the eye reads them as process stages.
+ */
+function drawFlowBands() {
+    if (!flowBands || !flowBands.length) return;
+    // Full content width across all placed nodes (so bands are uniform).
+    let minX = Infinity, maxX = -Infinity;
+    Object.keys(nodePositions).forEach(id => {
+        const p = nodePositions[id];
+        minX = Math.min(minX, p.x - NODE_WIDTH / 2);
+        maxX = Math.max(maxX, p.x + NODE_WIDTH / 2);
+    });
+    if (minX === Infinity) return;
+    const pad = 80;
+    const left = minX - pad, right = maxX + pad;
+    const width = right - left;
+
+    flowBands.forEach(band => {
+        ctx.save();
+        // Tinted fill.
+        ctx.globalAlpha = 0.07;
+        ctx.fillStyle = band.color;
+        ctx.fillRect(left, band.top, width, band.bottom - band.top);
+        // Top/bottom rules.
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = band.color;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([10, 6]);
+        ctx.beginPath();
+        ctx.moveTo(left, band.top); ctx.lineTo(right, band.top);
+        ctx.moveTo(left, band.bottom); ctx.lineTo(right, band.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Label (left-aligned, inside the band top).
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = band.color;
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(band.name, left + 14, band.top + 20);
+        ctx.restore();
+    });
+    ctx.globalAlpha = 1;
+}
+
+/**
  * Persist current node positions onto the project so manual arrangements
  * survive save/export/reload. Stored as a flat { id: {x, y} } map.
  */
@@ -611,7 +877,9 @@ function refreshDiagramLayout(fit = false) {
 function autoArrangeDiagram() {
     if (!canvas || !ctx) return;
     recalculateLayout();
-    separateTopLevelGroups();
+    // Group separation only applies to the composition (stack) layout; flow
+    // mode is already collision-free by construction (ranked + spread).
+    if (diagramLayoutMode !== 'flow') separateTopLevelGroups();
     zoomToFit();
     renderDiagram();
 }
@@ -625,6 +893,39 @@ function arrangeButtonClick() {
         if (typeof redoStack !== 'undefined') redoStack = [];
     }
     autoArrangeDiagram();
+}
+
+// Update the layout-mode button's label to show what a click will switch TO.
+function updateLayoutModeButton() {
+    const btn = document.getElementById('layout-mode-btn');
+    if (!btn) return;
+    btn.textContent = diagramLayoutMode === 'flow' ? 'Stack' : 'Flow';
+    btn.title = diagramLayoutMode === 'flow'
+        ? 'Switch to Stack layout (composition / substacks)'
+        : 'Switch to Flow layout (process ranks + phase lanes)';
+    btn.style.borderColor = diagramLayoutMode === 'flow' ? '#3b82f6' : '#334155';
+}
+
+/**
+ * Switch between Stack (composition) and Flow (process) layouts. Recomputes the
+ * layout fresh in the new mode and fits. The mode is persisted; manual drags
+ * saved in one mode are reapplied via applySavedPositions, but a mode switch
+ * intentionally recomputes so the new arrangement makes sense.
+ */
+function toggleLayoutMode() {
+    diagramLayoutMode = (diagramLayoutMode === 'flow') ? 'stack' : 'flow';
+    saveLayoutModePref();
+    updateLayoutModeButton();
+    recalculateLayout();
+    zoomToFit();
+    renderDiagram();
+}
+
+function setLayoutMode(mode) {
+    if (mode !== 'flow' && mode !== 'stack') return;
+    diagramLayoutMode = mode;
+    saveLayoutModePref();
+    updateLayoutModeButton();
 }
 
 // Background fill used for image export (matches the .diagram-frame CSS bg).
@@ -663,6 +964,14 @@ function computeContentBounds(pad = 20) {
         if (node.substacks) node.substacks.forEach(c => incl(c, depth + 1));
     };
     (project.layers || []).forEach(l => incl(l, 0));
+
+    // In flow mode, fold in the phase bands (full-width lanes + labels).
+    if (diagramLayoutMode === 'flow' && flowBands && flowBands.length) {
+        flowBands.forEach(band => {
+            T = Math.min(T, band.top);
+            B = Math.max(B, band.bottom);
+        });
+    }
 
     return { left: L - pad, top: T - pad, right: R + pad, bottom: B + pad };
 }
@@ -1765,6 +2074,11 @@ function renderDiagramWithHover() {
 
     const allLayers = getAllLayers();
     
+    // In FLOW mode, draw horizontal phase bands (lanes) instead of the
+    // composition group boxes. Bands sit behind everything.
+    if (diagramLayoutMode === 'flow') {
+        drawFlowBands();
+    } else {
     // Draw substack grouping boxes (recursive — every node with children gets
     // a dashed boundary around its whole subtree; deeper boxes use tighter
     // padding so they nest visually inside their parent's box).
@@ -1802,6 +2116,7 @@ function renderDiagramWithHover() {
         node.substacks.forEach(child => drawGroupBox(child, depth + 1));
     };
     project.layers.forEach(layer => drawGroupBox(layer, 0));
+    }
     
     // Draw connections with hover highlighting
     connections = [];
@@ -1871,8 +2186,9 @@ function renderDiagramWithHover() {
     });
     
     // Draw parent-to-substack containment lines (recursive — every node to its
-    // direct children, at any depth).
+    // direct children, at any depth). Skipped in flow mode (nodes are flat).
     const drawContainment = (node) => {
+        if (diagramLayoutMode === 'flow') return;
         if (!node.substacks || node.substacks.length === 0 || !nodePositions[node.id]) return;
         node.substacks.forEach(child => {
             if (nodePositions[child.id]) {

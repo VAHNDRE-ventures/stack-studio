@@ -271,74 +271,80 @@
             if (bare) { ensureNode(bare[1]); continue; }
         }
 
-        // Assign nodes to their subgraph's children list.
+        // Assign group (phase/lane) membership to each node from its subgraph.
+        const groupOf = new Map();        // nodeId → group display name
+        const groupMembers = new Map();   // subgraphId → [nodeId]
         nodes.forEach(n => {
             if (n.container && subgraphs.has(n.container)) {
-                subgraphs.get(n.container).children.push(n.id);
+                const sg = subgraphs.get(n.container);
+                groupOf.set(n.id, sg.name);
+                if (!groupMembers.has(n.container)) groupMembers.set(n.container, []);
+                groupMembers.get(n.container).push(n.id);
             }
         });
 
-        // Build the project. Each subgraph → a top-level layer with substacks.
-        // Nodes with no container → top-level layers. Subgraph ids referenced
-        // as edge endpoints are themselves layers.
+        // Build FLAT layers — one per real node. Subgraphs are NOT turned into
+        // nodes; they become the `group` tag (a phase/lane). This avoids the
+        // phantom container nodes the old composition mapping created and keeps
+        // the diagram's flow axis intact for the Flow layout.
         const layers = [];
-        const idToLayerRef = new Map(); // nodeId/subgraphId → layer object
-
-        subgraphs.forEach(sg => {
+        const idToLayer = new Map(); // nodeId → layer object
+        nodes.forEach(n => {
+            if (subgraphs.has(n.id)) return; // a subgraph id is never a node
             const layer = {
-                id: sg.id,
-                name: sg.name,
-                type: sg.type,
+                id: n.id,
+                name: n.name,
+                type: n.type,
                 status: 'Active',
                 technology: '',
                 description: '',
                 connections: [],
-                substacks: sg.children.map(cid => {
-                    const c = nodes.get(cid);
-                    const sub = {
-                        id: c.id, name: c.name, type: c.type, status: 'Active',
-                        technology: '', description: '', connections: [], substacks: []
-                    };
-                    idToLayerRef.set(c.id, sub);
-                    return sub;
-                })
+                substacks: []
             };
+            if (groupOf.has(n.id)) layer.group = groupOf.get(n.id);
             layers.push(layer);
-            idToLayerRef.set(sg.id, layer);
-        });
-
-        // Top-level (container-less) nodes that aren't subgraphs.
-        nodes.forEach(n => {
-            if (!n.container && !subgraphs.has(n.id)) {
-                const layer = {
-                    id: n.id, name: n.name, type: n.type, status: 'Active',
-                    technology: '', description: '', connections: [], substacks: []
-                };
-                layers.push(layer);
-                idToLayerRef.set(n.id, layer);
-            }
+            idToLayer.set(n.id, layer);
         });
 
         if (layers.length === 0) throw new Error('No nodes found in Mermaid source');
 
-        // Attach edges as connections on the source node/layer. Dedupe.
+        // Resolve an edge endpoint to one or more real node ids. A bare node id
+        // resolves to itself; a subgraph id expands to all its member nodes
+        // (so a phase-level edge like `SRC --> COOKIE` funnels every source node
+        // into the target — more faithful than one opaque cluster edge).
+        const resolveEndpoint = (id) => {
+            if (idToLayer.has(id)) return [id];
+            if (groupMembers.has(id)) return groupMembers.get(id).slice();
+            return [];
+        };
+
+        // Attach edges as connections on the source node. Expand group
+        // endpoints, drop self-loops from expansion, and dedupe.
         const seen = new Set();
         edges.forEach(e => {
-            const src = idToLayerRef.get(e.from);
-            const dst = idToLayerRef.get(e.to);
-            if (!src || !dst) return;
-            const key = `${e.from}->${e.to}:${e.label}`;
-            if (seen.has(key)) return;
-            seen.add(key);
-            const conn = { targetId: dst.id, type: e.dotted ? 'Async' : 'HTTP' };
-            if (e.label) conn.label = e.label;
-            src.connections.push(conn);
+            const froms = resolveEndpoint(e.from);
+            const tos = resolveEndpoint(e.to);
+            froms.forEach(f => tos.forEach(t => {
+                if (f === t) return;
+                const src = idToLayer.get(f);
+                if (!src || !idToLayer.has(t)) return;
+                const key = `${f}->${t}:${e.label || ''}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                const conn = { targetId: t, type: e.dotted ? 'Async' : 'HTTP' };
+                if (e.label) conn.label = e.label;
+                src.connections.push(conn);
+            }));
         });
 
-        return {
-            name: title || 'Imported Diagram',
-            layers
-        };
+        // Ordered phase names (subgraph declaration order) so the Flow view can
+        // band them in source order when ranks tie.
+        const groupOrder = [];
+        subgraphs.forEach(sg => { if (!groupOrder.includes(sg.name)) groupOrder.push(sg.name); });
+
+        const proj = { name: title || 'Imported Diagram', layers };
+        if (groupOrder.length) proj.groupOrder = groupOrder;
+        return proj;
     }
 
     // Quick test: does a line contain an edge connector? Covers solid, thick,

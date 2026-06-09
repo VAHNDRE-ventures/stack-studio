@@ -48,30 +48,31 @@ try {
     process.exit(1);
 }
 
-// Top-level layers: 4 subgraphs + 1 bare node (USER).
-const topNames = project.layers.map(l => l.name);
-log(project.layers.length === 5, `5 top-level layers (got ${project.layers.length}: ${topNames.join(', ')})`);
+// FLAT model: every real node is a top-level layer (no phantom subgraph nodes,
+// no substacks). The sample has 11 real nodes across 4 subgraphs + 1 bare node.
+const expectedNodes = ['WEB','MOBILE','CDN','GW','AUTH','ORDERS','BILLING','PG','REDIS','USER'];
+log(project.layers.length === expectedNodes.length,
+    `flat: ${expectedNodes.length} top-level node-layers (got ${project.layers.length})`);
+log(project.layers.every(l => !l.substacks || l.substacks.length === 0),
+    'no substacks (composition not used for a flow graph)');
+log(!project.layers.some(l => /Clients|Edge|Services|Data$/.test(l.name)),
+    'no phantom subgraph/container layers');
 
-const byName = n => project.layers.find(l => l.name === n);
-const clients = byName('1 · Clients');
-const edge = byName('2 · Edge');
-const data = byName('4 · Data');
-log(!!clients && clients.substacks.length === 2, `Clients subgraph has 2 substacks (${clients?clients.substacks.length:'-'})`);
-log(!!data && data.substacks.length === 2, `Data subgraph has 2 substacks`);
+const byId = id => project.layers.find(l => String(l.id) === id);
 
-// Bare node USER → top-level layer, typed Actor (((circle))).
-const user = byName('Customer');
-log(!!user, 'bare node ((Customer)) became a top-level layer');
-log(!!user && user.type === 'Actor', `Customer typed Actor (got ${user?user.type:'-'})`);
+// Group (phase) tagging instead of containment.
+const web = byId('WEB'), pg = byId('PG'), gw = byId('GW'), auth = byId('AUTH'), user = byId('USER');
+log(!!web && web.group === '1 · Clients', `WEB tagged group "1 · Clients" (got "${web?web.group:'-'}")`);
+log(!!pg && pg.group === '4 · Data', `PG tagged group "4 · Data" (got "${pg?pg.group:'-'}")`);
+log(!!user && !user.group, 'bare node USER has no group (correct)');
+log(Array.isArray(project.groupOrder) && project.groupOrder[0] === '1 · Clients',
+    `groupOrder captured in declaration order (${project.groupOrder ? project.groupOrder.length : 0} phases)`);
 
-// Shape→type mapping inside subgraphs.
-const findSub = (layer, nm) => layer && layer.substacks.find(s => s.name === nm);
-const pg = findSub(data, 'Postgres');
+// Shape→type still applies on flat nodes.
 log(!!pg && pg.type === 'Database', `[(Postgres)] typed Database (got ${pg?pg.type:'-'})`);
-const gw = findSub(edge, 'API Gateway');
 log(!!gw && gw.type === 'API', `{API Gateway} typed API (got ${gw?gw.type:'-'})`);
-const auth = findSub(byName('3 · Services'), 'Auth Service');
 log(!!auth && auth.type === 'Backend', `(Auth Service) typed Backend (got ${auth?auth.type:'-'})`);
+log(!!user && user.type === 'Actor', `((Customer)) typed Actor (got ${user?user.type:'-'})`);
 
 // Migrate + structural integrity.
 project = migrateProject(project);
@@ -89,9 +90,7 @@ allLayers.forEach(l => {
 });
 log(dangling === 0, `no dangling connection targets (${edgeCount} edges)`);
 
-// Re-fetch nodes by id from the migrated project (migrateProject may return a
-// new object graph, so pre-migration references are stale).
-const byId = id => allLayers.find(l => String(l.id) === String(id));
+// (byId defined above; migrateProject mutates in place so refs stay valid.)
 
 // Fan-out: GW --> ORDERS & BILLING produces 2 edges from the gateway.
 // (Read raw .connections — getConnections() normalizes to {targetId,type} and
@@ -111,9 +110,11 @@ const billingM = byId('BILLING');
 const settle = (billingM.connections || []).find(c => c.type === 'Async');
 log(!!settle && settle.label === 'async settle', `dotted edge → Async w/ label ("${settle?settle.label:'-'}")`);
 
-// Subgraph-level edge CLIENTS --> CDN attaches on the Clients layer.
-const clientsConns = (byId('CLIENTS').connections || []);
-log(clientsConns.some(c => String(c.targetId) === 'CDN'), 'subgraph-level edge (CLIENTS → CDN) attached at layer level');
+// Group-level edge `CLIENTS --> CDN` expands to member→target edges
+// (WEB→CDN and MOBILE→CDN), since CLIENTS is now a phase tag, not a node.
+const webToCdn = (byId('WEB').connections || []).some(c => String(c.targetId) === 'CDN');
+const mobileToCdn = (byId('MOBILE').connections || []).some(c => String(c.targetId) === 'CDN');
+log(webToCdn && mobileToCdn, 'group-level edge (CLIENTS → CDN) expanded to member nodes');
 
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);
