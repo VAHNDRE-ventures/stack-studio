@@ -22,6 +22,24 @@ let draggedNodeId = null;
 let dragMoved = false;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+// Pre-drag project snapshot, pushed onto the undo stack only if a drag
+// actually repositions a node (so Ctrl+Z reverts node moves).
+let dragStartSnapshot = null;
+
+// Push the pre-drag snapshot onto the global undo stack so a node move can be
+// undone. saveState() snapshots the *current* (already-moved) state, so we
+// can't reuse it here; instead we splice our pre-drag snapshot in directly.
+function commitDragUndo() {
+    if (dragStartSnapshot === null) return;
+    if (typeof undoStack !== 'undefined') {
+        undoStack.push(dragStartSnapshot);
+        if (typeof MAX_HISTORY !== 'undefined' && undoStack.length > MAX_HISTORY) {
+            undoStack.shift();
+        }
+        if (typeof redoStack !== 'undefined') redoStack = [];
+    }
+    dragStartSnapshot = null;
+}
 
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 120;
@@ -1015,6 +1033,11 @@ function handleCanvasMouseDown(e) {
         // Begin dragging this node (real drag-to-reposition, finally).
         draggedNodeId = node.id;
         dragMoved = false;
+        // Snapshot the project before the drag so the move can be undone. We
+        // capture here (not on mouseup) so the undo target is the pre-drag
+        // layout; it's only committed to the undo stack if the node actually
+        // moves (see commitDragUndo).
+        dragStartSnapshot = (typeof project !== 'undefined') ? JSON.stringify(project) : null;
         const pos = nodePositions[node.id];
         dragOffsetX = x - pos.x;
         dragOffsetY = y - pos.y;
@@ -1116,18 +1139,20 @@ function handleCanvasMouseMove(e) {
 
 function handleCanvasMouseUp() {
     if (draggedNodeId !== null) {
-        if (dragMoved) persistNodePositions();
+        if (dragMoved) { commitDragUndo(); persistNodePositions(); }
         draggedNodeId = null;
         dragMoved = false;
+        dragStartSnapshot = null;
     }
     isPanning = false;
     canvas.style.cursor = 'grab';
 }
 
 function handleCanvasMouseLeave() {
-    if (draggedNodeId !== null && dragMoved) persistNodePositions();
+    if (draggedNodeId !== null && dragMoved) { commitDragUndo(); persistNodePositions(); }
     draggedNodeId = null;
     dragMoved = false;
+    dragStartSnapshot = null;
     hoveredConnection = null;
     hoveredNodeId = null;
     isPanning = false;

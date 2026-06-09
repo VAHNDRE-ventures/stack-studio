@@ -57,6 +57,19 @@ function debugCostBadges() {
     console.log('========== END DEBUG ==========\n');
 }
 
+// Returns true when the event target is a text-editing field, where Ctrl+Z
+// would otherwise be captured by the browser's native text-undo.
+function isEditableTarget(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    if (tag === 'TEXTAREA') return true;
+    if (tag === 'INPUT') {
+        const t = (el.type || 'text').toLowerCase();
+        return ['text', 'search', 'url', 'tel', 'email', 'password', 'number'].includes(t);
+    }
+    return el.isContentEditable === true;
+}
+
 function saveState() {
     undoStack.push(JSON.stringify(project));
     if (undoStack.length > MAX_HISTORY) {
@@ -81,7 +94,10 @@ function undo() {
     }
     selectLayer(selectedLayerIndex);
     if (currentView === 'diagram') {
-        renderDiagram();
+        // Rebuild the layout from the restored project so node-position changes
+        // (drags) are reverted, not just data changes.
+        if (typeof refreshDiagramLayout === 'function') refreshDiagramLayout();
+        else renderDiagram();
     }
 }
 
@@ -101,7 +117,8 @@ function redo() {
     }
     selectLayer(selectedLayerIndex);
     if (currentView === 'diagram') {
-        renderDiagram();
+        if (typeof refreshDiagramLayout === 'function') refreshDiagramLayout();
+        else renderDiagram();
     }
 }
 
@@ -1247,6 +1264,7 @@ function updateConnectionLabel(targetId, label) {
     const conn = currentLayer.connections.find(c => c.targetId == targetId);
     if (!conn) return;
 
+    saveState();
     const trimmed = (label || '').trim();
     if (trimmed) conn.label = trimmed; else delete conn.label;
 
@@ -1687,11 +1705,28 @@ let isAnimating = false;
 document.addEventListener('keydown', (e) => {
     // Undo/Redo shortcuts
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        // If focus is inside an editable field, the field's edit commits on
+        // `onchange` (blur). Pressing Ctrl+Z here would otherwise hit the
+        // browser's native text-undo and never reach the app, making undo feel
+        // broken. Blur first so the pending edit lands on the undo stack, then
+        // run the app-level undo.
+        if (isEditableTarget(e.target)) {
+            e.preventDefault();
+            e.target.blur();
+            undo();
+            return;
+        }
         e.preventDefault();
         undo();
         return;
     }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        if (isEditableTarget(e.target)) {
+            e.preventDefault();
+            e.target.blur();
+            redo();
+            return;
+        }
         e.preventDefault();
         redo();
         return;
