@@ -1,5 +1,6 @@
 {
   "name": "Acme SaaS Platform",
+  "avgTransactionValue": 49,
   "layers": [
     {
       "id": 1001,
@@ -140,13 +141,24 @@
           "name": "Billing Module",
           "type": "Backend",
           "status": "Active",
-          "description": "Subscription and invoice logic.",
+          "description": "Subscription and invoice logic. Payment processing fees are percentage-of-value.",
           "technology": "Stripe SDK",
           "responsibilities": "Manage plans, proration, invoices.",
           "connections": [],
           "dependencies": [],
           "visible": true,
-          "locked": false
+          "locked": false,
+          "costModel": {
+            "currency": "USD",
+            "period": "month",
+            "fixedCost": 0,
+            "fixedCostDescription": "",
+            "variableCost": 0,
+            "variableUnit": "per-request",
+            "percentageCost": 2.9,
+            "percentageFixed": 0.30,
+            "notes": "Stripe standard: 2.9% + $0.30 per successful charge."
+          }
         },
         {
           "id": "1003_2",

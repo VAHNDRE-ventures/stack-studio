@@ -177,8 +177,9 @@ function renderLayerDetails(layer) {
                 <div class="detail-tab-content" data-tab="cost">
                     <div class="cost-explainer">
                         <strong>Cost Model</strong><br>
-                        • <strong>Fixed Cost:</strong> Recurring infrastructure cost (e.g., $80/month)<br>
-                        • <strong>Variable Cost:</strong> Per-use cost (e.g., $0.0000001/request)
+                        • <strong>Fixed:</strong> recurring infrastructure cost (e.g., $80/month)<br>
+                        • <strong>Variable:</strong> per-use cost (e.g., $0.0000001/request)<br>
+                        • <strong>% of Transaction:</strong> percentage + flat fee per txn (e.g., 3.49% + $0.49 for PayPal)
                     </div>
 
                     <div class="detail-grid-2">
@@ -222,6 +223,35 @@ function renderLayerDetails(layer) {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Percentage-of-transaction-value cost (Gap 4) -->
+                    <div class="detail-grid-2">
+                        <div class="detail-section detail-section-flush">
+                            <div class="detail-label">% of Transaction</div>
+                            <div class="input-affix">
+                                <input type="number" class="detail-input" step="0.01" min="0" value="${escapeHtml(layer.costModel?.percentageCost || 0)}"
+                                       onchange="updateCostField('percentageCost', parseFloat(this.value))">
+                                <span class="affix">%</span>
+                            </div>
+                        </div>
+
+                        <div class="detail-section detail-section-flush">
+                            <div class="detail-label">+ Flat Per Txn</div>
+                            <div class="input-affix">
+                                <span class="affix">${currencySymbol(layer.costModel?.currency || 'USD')}</span>
+                                <input type="number" class="detail-input" step="0.01" min="0" value="${escapeHtml(layer.costModel?.percentageFixed || 0)}"
+                                       onchange="updateCostField('percentageFixed', parseFloat(this.value))">
+                            </div>
+                        </div>
+                    </div>
+                    ${(layer.costModel?.percentageCost > 0 || layer.costModel?.percentageFixed > 0) ? `
+                        <div class="cost-pct-preview">
+                            ${escapeHtml(String(layer.costModel.percentageCost || 0))}% + ${currencySymbol(layer.costModel?.currency || 'USD')}${escapeHtml(String(layer.costModel.percentageFixed || 0))} =
+                            <strong>${currencySymbol(layer.costModel?.currency || 'USD')}${(((layer.costModel.percentageCost || 0) / 100) * getAvgTransactionValue(project) + (layer.costModel.percentageFixed || 0)).toFixed(2)}</strong>
+                            per transaction at ${currencySymbol(layer.costModel?.currency || 'USD')}${getAvgTransactionValue(project)} AOV
+                            <span class="cost-pct-hint">(set AOV in the Cost dashboard)</span>
+                        </div>
+                    ` : ''}
 
                     <div class="detail-section detail-section-flush">
                         <div class="detail-label">Notes</div>

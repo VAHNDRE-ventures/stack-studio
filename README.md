@@ -17,7 +17,8 @@ It offers four synchronized views over a single project model:
 - **Diagram** — a draggable C4-style architecture diagram with typed,
   labeled connections.
 - **Actions** — user-flow / request-path tracking across layers.
-- **Cost** — a roll-up of per-layer fixed and variable costs.
+- **Cost** — a roll-up of per-layer fixed, variable, and percentage-of-value
+  costs, with a Current/Projected scope toggle and a per-transaction view.
 
 ![Diagram view](screenshot-diagram.png)
 ![Stack view](screenshot-stack.png)
@@ -78,6 +79,10 @@ nodes, which render with a dashed border and a status pill so a single diagram
 can show current + future state.
 
 The real-world sample in `samples/sample-saas.json` is used by the test suite.
+
+See **[SCHEMA.md](SCHEMA.md)** for the complete project schema reference —
+every field, enum, the cost model (including percentage-of-value costs), and
+the migration rules.
 
 ## Using it
 
@@ -154,6 +159,7 @@ node samples/smoke.mjs           # headless Chrome: boots, loads sample, all vie
 node samples/check-diagram.mjs   # headless: layout, edges, drag persistence
 node samples/check-actions.mjs   # headless: action persistence + diagram path highlight
 node samples/check-schema.mjs    # headless: Planned status, Actor type, connection labels
+node samples/check-cost.mjs      # headless: percentage costs + status-aware rollup
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 

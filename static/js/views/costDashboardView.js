@@ -39,6 +39,36 @@ function renderCostDashboard() {
             letter-spacing: -0.5px;
         `;
         header.appendChild(title);
+
+        // Scope controls (Gap 5 + Gap 4): toggle future nodes into the rollup,
+        // and set the avg transaction value that percentage costs evaluate at.
+        const controls = document.createElement('div');
+        controls.style.cssText = 'display:flex; align-items:center; gap:16px; flex-wrap:wrap;';
+
+        const aov = (typeof getAvgTransactionValue === 'function') ? getAvgTransactionValue(project) : 50;
+        const aovWrap = document.createElement('label');
+        aovWrap.style.cssText = 'display:flex; align-items:center; gap:6px; color:#94a3b8; font-size:12px;';
+        aovWrap.innerHTML = `Avg transaction value <span style="color:#64748b;">$</span>`;
+        const aovInput = document.createElement('input');
+        aovInput.type = 'number'; aovInput.min = '0'; aovInput.step = '0.01'; aovInput.value = aov;
+        aovInput.style.cssText = 'width:80px; background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px 8px; border-radius:4px; font-size:12px;';
+        aovInput.onchange = () => {
+            const v = parseFloat(aovInput.value);
+            project.avgTransactionValue = isNaN(v) ? 0 : v;
+            saveProject();
+            renderCostDashboard();
+        };
+        aovWrap.appendChild(aovInput);
+        controls.appendChild(aovWrap);
+
+        const scopeBtn = document.createElement('button');
+        const inclFuture = costScope.includeFuture;
+        scopeBtn.textContent = inclFuture ? 'Scope: Projected (incl. Planned)' : 'Scope: Current (Active only)';
+        scopeBtn.style.cssText = `background:${inclFuture ? '#f59e0b' : '#1e293b'}; color:${inclFuture ? '#0f172a' : '#e2e8f0'}; border:1px solid #334155; padding:8px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;`;
+        scopeBtn.onclick = () => { costScope.includeFuture = !costScope.includeFuture; renderCostDashboard(); };
+        controls.appendChild(scopeBtn);
+
+        header.appendChild(controls);
         container.appendChild(header);
         
         // Summary section
@@ -50,16 +80,19 @@ function renderCostDashboard() {
             margin-bottom: 32px;
         `;
         
-        // Calculate total costs
-        const aggregated = aggregateStackCosts(project.layers);
+        // Calculate total costs (honoring the current cost scope)
+        const aggregated = aggregateStackCosts(project.layers, costScope);
         const consolidated = consolidateVariableCosts(aggregated);
         
-        // Separate fixed and variable from consolidated array
+        // Separate fixed, variable, and percentage from consolidated array
         const totalFixed = consolidated
             .filter(c => c.type === 'fixed')
             .reduce((sum, c) => sum + c.amount, 0);
         const totalVariable = consolidated
             .filter(c => c.type === 'variable')
+            .reduce((sum, c) => sum + c.amount, 0);
+        const totalPercentage = consolidated
+            .filter(c => c.type === 'percentage')
             .reduce((sum, c) => sum + c.amount, 0);
         const totalCost = totalFixed + totalVariable;
         
@@ -107,6 +140,23 @@ function renderCostDashboard() {
             <div style="color: #64748b; font-size: 11px; margin-top: 8px;">Usage-based</div>
         `;
         summarySection.appendChild(variableCard);
+
+        // Percentage-of-transaction-value cost card (Gap 4)
+        if (totalPercentage > 0) {
+            const pctCard = document.createElement('div');
+            pctCard.style.cssText = `
+                background: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 8px;
+                padding: 16px;
+            `;
+            pctCard.innerHTML = `
+                <div style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Per-Transaction Fees</div>
+                <div style="color: #ec4899; font-size: 24px; font-weight: 700;">${formatCost(totalPercentage, 'USD', true)}</div>
+                <div style="color: #64748b; font-size: 11px; margin-top: 8px;">% of value @ ${formatCost(aov)} AOV</div>
+            `;
+            summarySection.appendChild(pctCard);
+        }
         
         // Actions count card
         const actionsCard = document.createElement('div');

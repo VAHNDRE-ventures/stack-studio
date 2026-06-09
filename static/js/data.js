@@ -213,8 +213,12 @@ function migrateCostModel(costModel) {
         currency: costModel.currency || 'USD',
         period: costModel.period || 'month',
         fixedCost: costModel.fixedCost || 0,
+        fixedCostDescription: costModel.fixedCostDescription || '',
         variableCost: variableCost,
         variableUnit: newUnit,
+        // Preserve percentage-of-value cost fields (Gap 4).
+        percentageCost: costModel.percentageCost || 0,
+        percentageFixed: costModel.percentageFixed || 0,
         notes: costModel.notes || ''
     };
 }
@@ -248,8 +252,38 @@ function migrateProject(project) {
     migrateProjectConnections(project);
     migrateProjectUsePaths(project);
     migrateProjectCostModels(project);
+
+    // Ensure a project-level avg transaction value exists for percentage-cost
+    // evaluation (Gap 4). Defaulted, never overwritten if already set.
+    if (typeof project.avgTransactionValue !== 'number') {
+        project.avgTransactionValue = DEFAULT_AVG_TRANSACTION_VALUE;
+    }
     
     return project;
+}
+
+/**
+ * The project's average transaction value, used to evaluate percentage-of-value
+ * costs. Falls back to the default when unset.
+ */
+function getAvgTransactionValue(project) {
+    return (project && typeof project.avgTransactionValue === 'number')
+        ? project.avgTransactionValue
+        : DEFAULT_AVG_TRANSACTION_VALUE;
+}
+
+/**
+ * Per-transaction cost contributed by a cost model's percentage component:
+ * (percentageCost% × avgTransactionValue) + percentageFixed.
+ * Returns 0 when no percentage cost is set.
+ */
+function evaluatePercentageCost(costModel, avgTransactionValue) {
+    if (!costModel) return 0;
+    const pct = costModel.percentageCost || 0;
+    const fixed = costModel.percentageFixed || 0;
+    if (pct === 0 && fixed === 0) return 0;
+    const aov = (typeof avgTransactionValue === 'number') ? avgTransactionValue : DEFAULT_AVG_TRANSACTION_VALUE;
+    return (pct / 100) * aov + fixed;
 }
 
 // Helper function to ensure all templates have standardized cost models
@@ -425,6 +459,10 @@ const VARIABLE_COST_UNITS = {
 const COST_CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD'];
 const COST_PERIODS = ['month', 'year'];
 
+// Default avg transaction value used to evaluate percentage-of-value costs
+// (Gap 4) when a project doesn't specify one.
+const DEFAULT_AVG_TRANSACTION_VALUE = 50;
+
 // Default cost model template (updated for new structure)
 const DEFAULT_COST_MODEL = {
     currency: 'USD',
@@ -433,6 +471,11 @@ const DEFAULT_COST_MODEL = {
     fixedCostDescription: '',
     variableCost: 0,
     variableUnit: 'per-1m-requests',  // Default to standardized unit
+    // Percentage-of-transaction-value cost (Gap 4). For e.g. PayPal at
+    // "3.49% + $0.49": percentageCost = 3.49, percentageFixed = 0.49.
+    // Evaluated against the project's avgTransactionValue.
+    percentageCost: 0,        // percent (e.g. 3.49 means 3.49%)
+    percentageFixed: 0,       // flat per-transaction fee added to the percentage
     notes: ''
 };
 

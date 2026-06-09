@@ -9,6 +9,9 @@ let highlightedActionPath = null;  // {layerIds:Set, name} for diagram path high
 let actionsViewCollapsed = false;  // Track if Actions section is collapsed
 let pathsViewCollapsed = false;  // Track if Paths section is collapsed
 let currentView = 'stack';  // Track current view (stack, diagram, actions, cost-dashboard)
+// Cost dashboard scope (Gap 5): whether the rollup includes future (Planned/
+// Proposed) nodes. Actors/External are always excluded from cost.
+let costScope = { includeFuture: false, includeActors: false };
 const MAX_HISTORY = 50;
 
 function loadProject() {
@@ -179,10 +182,11 @@ function toggleView(view) {
 }
 
 function calculateTotalLayerCost(layer) {
-    // Calculate total cost including substacks
+    // Sum a layer's monthly-ish fixed cost including substacks. Used for the
+    // stack-view badge color thresholds. (Percentage/variable costs are
+    // per-transaction, so they're surfaced separately, not summed here.)
     let totalCost = layer.costModel?.fixedCost || 0;
     
-    // Add costs from all substacks
     if (layer.substacks && layer.substacks.length > 0) {
         layer.substacks.forEach(substack => {
             totalCost += substack.costModel?.fixedCost || 0;
@@ -192,60 +196,63 @@ function calculateTotalLayerCost(layer) {
     return totalCost;
 }
 
-function getLayerCostComponents(layer) {
-    // Collect all cost components (layer + substacks) with their periods
+/**
+ * Cost-scope options used across the rollup:
+ *   includeFuture: include Planned/Proposed nodes (default false = current state)
+ *   includeActors: include Actor/External nodes (default false = excluded)
+ * A node's own components are skipped when it's filtered out.
+ */
+function nodeCountsForCost(node, opts) {
+    const o = opts || {};
+    if (!o.includeFuture && typeof isFutureStatus === 'function' && isFutureStatus(node.status)) return false;
+    if (!o.includeActors && typeof isActorType === 'function' && isActorType(node.type)) return false;
+    return true;
+}
+
+// Emit the cost components for a single node's own costModel (no substacks).
+function nodeOwnCostComponents(node) {
     const components = [];
-    
-    // Add layer's own costs
-    if (layer.costModel) {
-        if (layer.costModel.fixedCost > 0) {
+    const cm = node.costModel;
+    if (!cm) return components;
+    if (cm.fixedCost > 0) {
+        components.push({ amount: cm.fixedCost, period: cm.period, currency: cm.currency, type: 'fixed', source: node.name });
+    }
+    if (cm.variableCost > 0) {
+        components.push({ amount: cm.variableCost, period: cm.period, currency: cm.currency, unit: cm.variableUnit, type: 'variable', source: node.name });
+    }
+    // Percentage-of-transaction-value cost (Gap 4): surface the evaluated
+    // per-transaction amount at the project's avg transaction value.
+    if ((cm.percentageCost > 0 || cm.percentageFixed > 0) && typeof evaluatePercentageCost === 'function') {
+        const aov = (typeof getAvgTransactionValue === 'function') ? getAvgTransactionValue(project) : 50;
+        const perTxn = evaluatePercentageCost(cm, aov);
+        if (perTxn > 0) {
             components.push({
-                amount: layer.costModel.fixedCost,
-                period: layer.costModel.period,
-                currency: layer.costModel.currency,
-                type: 'fixed',
-                source: layer.name
-            });
-        }
-        if (layer.costModel.variableCost > 0) {
-            components.push({
-                amount: layer.costModel.variableCost,
-                period: layer.costModel.period,
-                currency: layer.costModel.currency,
-                unit: layer.costModel.variableUnit,
-                type: 'variable',
-                source: layer.name
+                amount: perTxn, period: cm.period, currency: cm.currency,
+                unit: 'per-transaction', type: 'percentage', source: node.name,
+                percentageCost: cm.percentageCost || 0, percentageFixed: cm.percentageFixed || 0, aov: aov
             });
         }
     }
-    
-    // Add substack costs
+    return components;
+}
+
+function getLayerCostComponents(layer, opts) {
+    // Collect all cost components (layer + its substacks), honoring the
+    // status/actor cost-scope filter.
+    const components = [];
+
+    if (nodeCountsForCost(layer, opts)) {
+        components.push(...nodeOwnCostComponents(layer));
+    }
+
     if (layer.substacks && layer.substacks.length > 0) {
         layer.substacks.forEach(substack => {
-            if (substack.costModel) {
-                if (substack.costModel.fixedCost > 0) {
-                    components.push({
-                        amount: substack.costModel.fixedCost,
-                        period: substack.costModel.period,
-                        currency: substack.costModel.currency,
-                        type: 'fixed',
-                        source: substack.name
-                    });
-                }
-                if (substack.costModel.variableCost > 0) {
-                    components.push({
-                        amount: substack.costModel.variableCost,
-                        period: substack.costModel.period,
-                        currency: substack.costModel.currency,
-                        unit: substack.costModel.variableUnit,
-                        type: 'variable',
-                        source: substack.name
-                    });
-                }
+            if (nodeCountsForCost(substack, opts)) {
+                components.push(...nodeOwnCostComponents(substack));
             }
         });
     }
-    
+
     return components;
 }
 
@@ -298,12 +305,12 @@ function formatCostComponent(component) {
     return `${symbol}${component.amount}${periodLabel}`;
 }
 
-function aggregateStackCosts(layers) {
-    // Aggregate all costs from all layers and substacks
+function aggregateStackCosts(layers, opts) {
+    // Aggregate all costs from all layers and substacks (honoring cost-scope).
     const allComponents = [];
     
     layers.forEach(layer => {
-        const components = getLayerCostComponents(layer);
+        const components = getLayerCostComponents(layer, opts);
         allComponents.push(...components);
     });
     
@@ -342,6 +349,7 @@ function consolidateVariableCosts(aggregated) {
     // Consolidate variable costs into semantic buckets
     const fixed = aggregated.filter(a => a.type === 'fixed');
     const variable = aggregated.filter(a => a.type === 'variable');
+    const percentage = aggregated.filter(a => a.type === 'percentage');
     
     // Group variable costs by semantic category
     const buckets = {
@@ -370,7 +378,11 @@ function consolidateVariableCosts(aggregated) {
     
     // Build consolidated result
     const consolidated = [...fixed];
-    
+
+    // Pass percentage-of-value costs through unbucketed (per-transaction,
+    // semantically distinct from per-unit variable costs).
+    percentage.forEach(p => consolidated.push(p));
+
     // Add consolidated variable buckets
     Object.entries(buckets).forEach(([category, items]) => {
         if (items.length > 0) {
