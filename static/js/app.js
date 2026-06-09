@@ -1589,12 +1589,15 @@ function importProject() {
                 renderLayers();
                 updateStats();
                 selectLayer(0);
-                // A grouped project (e.g. a saved Mermaid/flow import) reads
-                // best in Flow layout — switch to it on open so it doesn't load
-                // in the composition (Stack) layout, which sprawls flow graphs.
-                if (typeof setLayoutMode === 'function' && typeof projectHasGroups === 'function' && projectHasGroups()) {
-                    setLayoutMode('flow');
-                    if (currentView === 'diagram' && typeof autoArrangeDiagram === 'function') autoArrangeDiagram();
+                // Choose the layout that fits the project: Flow for a grouped
+                // flow graph (Mermaid-style), Stack for a composition project.
+                // Set it explicitly (and persist) so the diagram orients right
+                // on first entry without a manual toggle.
+                if (typeof setLayoutMode === 'function' && typeof projectHasGroups === 'function') {
+                    setLayoutMode(projectHasGroups() ? 'flow' : 'stack');
+                }
+                if (currentView === 'diagram' && typeof autoArrangeDiagram === 'function') {
+                    autoArrangeDiagram();
                 }
             } catch (error) {
                 alert('Error loading project file');

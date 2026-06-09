@@ -63,13 +63,16 @@ setTimeout(async () => {
         const pos = id => nodePositions[id];
         r.allPlaced = ['A','A2','B','C','D'].every(id => pos(id) && Number.isFinite(pos(id).x) && Number.isFinite(pos(id).y));
 
-        // Forward edges point downward: B below A/A2, C below B, D below C.
+        // Cross-phase flow points downward: B (Phase 2) below A/A2 (Phase 1),
+        // C (Phase 3) below B. Within a phase, nodes pack into a compact grid
+        // (peers), so C and D — both Phase 3 — share the band rather than D
+        // sitting strictly below C.
         r.bBelowA = pos('B').y > pos('A').y && pos('B').y > pos('A2').y;
         r.cBelowB = pos('C').y > pos('B').y;
-        r.dBelowC = pos('D').y > pos('C').y;
+        r.dSamePhaseAsC = Math.abs(pos('D').y - pos('C').y) < (120 + 40 + 1); // within a row-step
 
-        // Back-edge D -. .-> B did NOT pull B down past D (ranking ignored it).
-        r.backEdgeOk = pos('B').y < pos('D').y;
+        // Back-edge D -. .-> B did NOT pull B up/down past its phase.
+        r.backEdgeOk = pos('B').y < pos('C').y;
 
         // Same-rank nodes A and A2 don't overlap horizontally.
         r.sameRankNoOverlap = Math.abs(pos('A').x - pos('A2').x) >= 200;
@@ -119,7 +122,7 @@ const r = JSON.parse(m[1].replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/
 
 log((r.errors||[]).length===0, `no errors${r.errors&&r.errors.length?': '+r.errors.join(' | '):''}`);
 log(r.allPlaced === true, 'all nodes placed with finite coords');
-log(r.bBelowA && r.cBelowB && r.dBelowC, 'forward edges flow downward (rank order)');
+log(r.bBelowA && r.cBelowB && r.dSamePhaseAsC, 'cross-phase flow downward; within-phase nodes packed as peers');
 log(r.backEdgeOk === true, 'back-edge (feedback) did not break ranking');
 log(r.sameRankNoOverlap === true, 'same-rank nodes do not overlap horizontally');
 log(r.bandCount === 3, `3 phase bands drawn (got ${r.bandCount}: ${(r.bandNames||[]).join(', ')})`);

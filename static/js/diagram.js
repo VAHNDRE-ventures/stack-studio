@@ -129,6 +129,12 @@ function initDiagramView() {
     canvas = document.getElementById('diagram-canvas');
     ctx = canvas.getContext('2d');
 
+    // Load the persisted layout mode BEFORE the first layout pass, so the
+    // diagram orients correctly on entry instead of computing a Stack layout
+    // and only flipping to Flow after the controls are built (the old jank
+    // that required Open → diagram → Stack → Flow to settle).
+    loadLayoutModePref();
+
     resizeCanvas();
     recalculateLayout();
 
@@ -613,12 +619,23 @@ function computeFlowLayout() {
 
     // Bucket nodes by rank.
     const ranks = {};
-    let maxRank = 0;
     ids.forEach(id => {
         const r = rank[id];
         (ranks[r] = ranks[r] || []).push(id);
-        if (r > maxRank) maxRank = r;
     });
+    // Compact ranks: phase-flooring can leave empty rank indices, which would
+    // render as tall vertical voids. Remap the used rank values onto a
+    // contiguous 0..N sequence so there are no gaps between populated rows.
+    const usedRanks = Object.keys(ranks).map(Number).sort((a, b) => a - b);
+    const rankRemap = {};
+    usedRanks.forEach((rv, i) => { rankRemap[rv] = i; });
+    const compactRanks = {};
+    usedRanks.forEach(rv => { compactRanks[rankRemap[rv]] = ranks[rv]; });
+    ids.forEach(id => { rank[id] = rankRemap[rank[id]]; });
+    // Replace ranks with the compacted version.
+    Object.keys(ranks).forEach(k => delete ranks[k]);
+    Object.assign(ranks, compactRanks);
+    let maxRank = usedRanks.length - 1;
 
     // Order within each rank: primarily by group (using project.groupOrder when
     // present), secondarily by barycenter of already-placed predecessors to cut
@@ -660,21 +677,79 @@ function computeFlowLayout() {
         for (let r = 1; r <= maxRank; r++) sortRank(r, true);
     }
 
-    // Place nodes. Vertical ranks (top→bottom), horizontal spread within rank.
-    const RANK_GAP = 200;     // vertical distance between ranks
-    const COL_GAP = 90;       // horizontal gap between nodes in a rank
+    // Place nodes top→bottom. Two strategies:
+    //  - GROUPED (flow import): pack each phase's nodes into a compact grid
+    //    inside its own band. A phase with N nodes becomes ceil(N/perRow) rows,
+    //    not N ranks — this keeps the diagram from becoming needlessly tall with
+    //    big empty bands. Phases stack in groupOrder.
+    //  - UNGROUPED: classic layered ranks (wrapping very wide ranks).
+    const RANK_GAP = 90;      // vertical gap between ranks / phases
+    const SUBROW_GAP = 40;    // vertical gap between rows within a phase/rank
+    const COL_GAP = 80;       // horizontal gap between nodes in a row
     const colStep = NODE_WIDTH + COL_GAP;
-    const widestRank = Math.max(...Object.values(ranks).map(a => a.length), 1);
-    const totalWidth = widestRank * colStep;
+    const rowStep = NODE_HEIGHT + SUBROW_GAP;
+    const MAX_PER_ROW = 6;
 
-    for (let r = 0; r <= maxRank; r++) {
-        const arr = ranks[r] || [];
-        const rowWidth = arr.length * colStep;
-        const startX = (totalWidth - rowWidth) / 2 + colStep / 2;
-        const y = 200 + r * (NODE_HEIGHT + RANK_GAP);
-        arr.forEach((id, i) => {
-            nodePositions[id] = { x: startX + i * colStep, y };
+    const usedGroupNames = [];
+    if (hasPhases) {
+        // Build the ordered list of phases that actually have members, plus an
+        // ungrouped bucket at the end.
+        const seen = new Set();
+        ids.map(id => nodeById[id].group)
+           .filter(g => g && phaseIndex(g) >= 0)
+           .sort((a, b) => phaseIndex(a) - phaseIndex(b))
+           .forEach(g => { if (!seen.has(g)) { seen.add(g); usedGroupNames.push(g); } });
+    }
+
+    if (hasPhases && usedGroupNames.length) {
+        // Width = widest phase row across all phases.
+        let widest = 1;
+        usedGroupNames.forEach(g => {
+            const n = ids.filter(id => nodeById[id].group === g).length;
+            widest = Math.max(widest, Math.min(n, MAX_PER_ROW));
         });
+        const ungrouped = ids.filter(id => phaseIndex(nodeById[id].group) < 0);
+        if (ungrouped.length) widest = Math.max(widest, Math.min(ungrouped.length, MAX_PER_ROW));
+        const totalWidth = widest * colStep;
+
+        let cursorY = 200;
+        const placePhase = (members) => {
+            // Order members by their forward rank then barycenter so the flow
+            // still reads top-to-bottom within the phase.
+            members.sort((a, b) => (rank[a] - rank[b]) || ((orderPos[a]||0) - (orderPos[b]||0)));
+            const perRow = Math.min(members.length, MAX_PER_ROW);
+            const rows = Math.ceil(members.length / perRow);
+            for (let row = 0; row < rows; row++) {
+                const slice = members.slice(row * perRow, (row + 1) * perRow);
+                const rowWidth = slice.length * colStep;
+                const startX = (totalWidth - rowWidth) / 2 + colStep / 2;
+                const y = cursorY + row * rowStep;
+                slice.forEach((id, i) => { nodePositions[id] = { x: startX + i * colStep, y }; });
+            }
+            cursorY += rows * NODE_HEIGHT + (rows - 1) * SUBROW_GAP + RANK_GAP;
+        };
+        usedGroupNames.forEach(g => placePhase(ids.filter(id => nodeById[id].group === g)));
+        if (ungrouped.length) placePhase(ungrouped);
+    } else {
+        // Ungrouped: classic ranked layout, wrapping very wide ranks.
+        let widest = 1;
+        for (let r = 0; r <= maxRank; r++) widest = Math.max(widest, Math.min((ranks[r]||[]).length, MAX_PER_ROW));
+        const totalWidth = widest * colStep;
+        let cursorY = 200;
+        for (let r = 0; r <= maxRank; r++) {
+            const arr = ranks[r] || [];
+            if (!arr.length) continue;
+            const perRow = Math.min(arr.length, MAX_PER_ROW);
+            const subRows = Math.ceil(arr.length / perRow);
+            for (let sr = 0; sr < subRows; sr++) {
+                const slice = arr.slice(sr * perRow, (sr + 1) * perRow);
+                const rowWidth = slice.length * colStep;
+                const startX = (totalWidth - rowWidth) / 2 + colStep / 2;
+                const y = cursorY + sr * rowStep;
+                slice.forEach((id, i) => { nodePositions[id] = { x: startX + i * colStep, y }; });
+            }
+            cursorY += subRows * NODE_HEIGHT + (subRows - 1) * SUBROW_GAP + RANK_GAP;
+        }
     }
 
     // Compute phase bands: for each group, the min/max Y of its members,
