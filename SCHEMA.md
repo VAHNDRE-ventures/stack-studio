@@ -37,8 +37,10 @@ Open imports it. Older documents are upgraded automatically on load (see
 ## Layer (and Substack)
 
 Layers are the nodes of the stack. A layer may contain `substacks`, which are
-the **same shape minus their own `substacks`** (nesting is currently one level
-deep — see the schema-gaps note on recursive substacks).
+**the same shape** — and substacks may themselves contain `substacks`, to any
+depth (n-level nesting). The diagram lays each level out to the right of its
+parent with nested grouping boxes; the details panel drills in with a
+breadcrumb.
 
 ```jsonc
 {
@@ -72,7 +74,7 @@ deep — see the schema-gaps note on recursive substacks).
 | `visible` | boolean? | Reserved for show/hide. |
 | `locked` | boolean? | Reserved for edit-locking. |
 | `costModel` | CostModel? | Cost inputs. See [CostModel](#costmodel). |
-| `substacks` | Substack[]? | Nested child nodes. Only valid on top-level layers. |
+| `substacks` | Substack[]? | Nested child nodes, recursive to any depth. |
 
 ### Layer types
 

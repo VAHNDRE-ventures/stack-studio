@@ -52,6 +52,25 @@ setTimeout(async()=>{
     // Each deeper level should sit to the right of its parent.
     const px = id => nodePositions[id] ? nodePositions[id].x : null;
     r.depthStepsRight = px(1) < px('1_1') && px('1_1') < px('1_1_1') && px('1_1_1') < px('1_1_1_1');
+
+    // Deep navigation + editing via the details panel:
+    toggleView('stack');
+    focusNodeByPath('1_1_1');                 // focus the depth-3 Auth Worker
+    r.focusedIsDeep = getCurrentNode().id === '1_1_1';
+    const detailsHtml = document.getElementById('layer-details').innerHTML;
+    r.hasBreadcrumb = detailsHtml.includes('detail-breadcrumb') && detailsHtml.includes('crumb-current');
+
+    // Edit a field on the deep node — must write to the right node:
+    updateLayerField('name', 'Auth Worker v2');
+    r.deepEditApplied = findNodePath('1_1_1').node.name === 'Auth Worker v2';
+
+    // Add a substack to the deep node:
+    const before = (findNodePath('1_1_1').node.substacks || []).length;
+    focusNodeByPath('1_1_1');
+    addSubstackLayer();
+    r.deepAddApplied = (findNodePath('1_1_1').node.substacks || []).length === before + 1;
+    // getAllLayers should now see the brand-new depth-4 node too.
+    r.flatAfterAdd = getAllLayers().length;
   }catch(e){r.errors.push('script: '+e.message);}
   r.errors=r.errors.concat(window.__e);
   const o=document.createElement('pre'); o.id='out'; o.textContent=JSON.stringify(r); document.body.appendChild(o);
@@ -74,5 +93,10 @@ log(r.fixedTotal===185, `cost rolls up all levels (100+50+25+10=185, got ${r.fix
 log(r.dangling===0, `connections to deep nodes resolve (dangling=${r.dangling})`);
 log(r.positioned===4 && r.allFinite, `diagram places all 4 nodes with finite coords (${r.positioned})`);
 log(r.depthStepsRight, 'each deeper level is laid out to the right of its parent');
+log(r.focusedIsDeep, 'focusNodeByPath focuses a depth-3 node');
+log(r.hasBreadcrumb, 'details panel shows a breadcrumb for the deep node');
+log(r.deepEditApplied, 'editing a field on a deep node writes to the right node');
+log(r.deepAddApplied, 'adding a substack to a deep node nests correctly');
+log(r.flatAfterAdd === 5, `new depth-4 node appears in getAllLayers (${r.flatAfterAdd})`);
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);

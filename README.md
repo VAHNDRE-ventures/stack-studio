@@ -60,7 +60,7 @@ A project is a JSON document:
       "costModel": { "currency": "USD", "period": "month",
                      "fixedCost": 400, "variableCost": 0.00002,
                      "variableUnit": "per-request" },
-      "substacks": [ /* same shape, nested one level */ ]
+      "substacks": [ /* same shape, nested to any depth */ ]
     }
   ],
   "diagramPositions": { "1": { "x": 200, "y": 200 } }  // saved node positions
@@ -160,6 +160,7 @@ node samples/check-diagram.mjs   # headless: layout, edges, drag persistence
 node samples/check-actions.mjs   # headless: action persistence + diagram path highlight
 node samples/check-schema.mjs    # headless: Planned status, Actor type, connection labels
 node samples/check-cost.mjs      # headless: percentage costs + status-aware rollup
+node samples/check-nesting.mjs   # headless: recursive substacks (layout, cost, deep nav)
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 

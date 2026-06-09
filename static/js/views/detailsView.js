@@ -24,10 +24,10 @@ function renderLayerDetails(layer) {
 
     const substackList = layer.substacks && layer.substacks.length > 0 ? `
         <div class="substack-list">
-            ${layer.substacks.map((sub, idx) => `
-                <div class="substack-row" onclick="enterSubstack(); selectLayer(${idx})">
+            ${layer.substacks.map((sub) => `
+                <div class="substack-row" onclick="focusNodeByPath('${escapeJsString(sub.id)}')">
                     <div class="substack-row-main">
-                        <div class="substack-row-name">${escapeHtml(sub.name)}</div>
+                        <div class="substack-row-name">${escapeHtml(sub.name)}${sub.substacks && sub.substacks.length ? ` <span class="substack-row-count">(${sub.substacks.length})</span>` : ''}</div>
                         <div class="substack-row-meta">${escapeHtml(sub.type)} • ${escapeHtml(sub.status)}</div>
                     </div>
                     <div class="substack-row-arrow">→</div>
@@ -38,16 +38,36 @@ function renderLayerDetails(layer) {
         <div class="empty-hint">No substacks yet. Add one below.</div>
     `;
 
-    const substackSection = !inSubstack ? `
+    // Substacks section is available for any node (recursive nesting), not just
+    // top-level layers.
+    const substackSection = `
         <div class="detail-section detail-section-flush">
             <div class="detail-label">Substacks (${layer.substacks ? layer.substacks.length : 0})</div>
             ${substackList}
-            <button class="btn btn-secondary btn-full" onclick="addSubstackLayer()">+ Add Substack Layer</button>
+            <button class="btn btn-secondary btn-full" onclick="addSubstackLayer()">+ Add Substack</button>
         </div>
-    ` : '';
+    `;
+
+    // Breadcrumb for deep navigation: shows the path from the top-level layer
+    // down to the focused node; click an ancestor to jump back up.
+    let breadcrumb = '';
+    if (typeof findNodePath === 'function') {
+        const fp = findNodePath(layer.id);
+        if (fp && fp.path.length > 1) {
+            breadcrumb = `<div class="detail-breadcrumb">` +
+                fp.path.map((n, i) => {
+                    const isLast = i === fp.path.length - 1;
+                    return isLast
+                        ? `<span class="crumb crumb-current">${escapeHtml(n.name)}</span>`
+                        : `<span class="crumb crumb-link" onclick="focusNodeByPath('${escapeJsString(n.id)}')">${escapeHtml(n.name)}</span><span class="crumb-sep">›</span>`;
+                }).join('') +
+                `</div>`;
+        }
+    }
 
     detailsDiv.innerHTML = `
         <div class="details-shell">
+            ${breadcrumb}
             <!-- Tab Navigation -->
             <div class="detail-tabs">
                 <button class="detail-tab" data-tab="properties" onclick="switchDetailTab('properties')">
@@ -59,11 +79,9 @@ function renderLayerDetails(layer) {
                 <button class="detail-tab" data-tab="cost" onclick="switchDetailTab('cost')">
                     Cost
                 </button>
-                ${!inSubstack ? `
-                    <button class="detail-tab" data-tab="substacks" onclick="switchDetailTab('substacks')">
-                        Substacks <span class="tab-count">${layer.substacks ? layer.substacks.length : 0}</span>
-                    </button>
-                ` : ''}
+                <button class="detail-tab" data-tab="substacks" onclick="switchDetailTab('substacks')">
+                    Substacks <span class="tab-count">${layer.substacks ? layer.substacks.length : 0}</span>
+                </button>
             </div>
 
             <!-- Tab Content -->
@@ -262,11 +280,9 @@ function renderLayerDetails(layer) {
                 </div>
 
                 <!-- Substacks Tab -->
-                ${!inSubstack ? `
-                    <div class="detail-tab-content" data-tab="substacks">
-                        ${substackSection}
-                    </div>
-                ` : ''}
+                <div class="detail-tab-content" data-tab="substacks">
+                    ${substackSection}
+                </div>
             </div>
         </div>
     `;

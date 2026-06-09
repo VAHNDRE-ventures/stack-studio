@@ -984,27 +984,19 @@ function handleCanvasClick(e) {
     
     const clickedNode = getNodeAtPosition(x, y);
     if (clickedNode) {
-        // Find and select this layer
-        const mainIndex = project.layers.findIndex(l => l.id === clickedNode.id);
-        if (mainIndex !== -1) {
-            selectedLayerIndex = mainIndex;
-            inSubstack = false;
+        // Focus the clicked node at any depth (handles top-level, direct
+        // substacks, and deeply-nested nodes via the ancestry path).
+        if (typeof focusNodeByPath === 'function') {
+            focusNodeByPath(clickedNode.id);
+            renderDiagram();
+        } else {
+            const mainIndex = project.layers.findIndex(l => l.id === clickedNode.id);
+            if (mainIndex !== -1) {
+                selectedLayerIndex = mainIndex;
+                inSubstack = false;
+            }
             renderDiagram();
             renderLayerDetails(clickedNode);
-        } else {
-            // Check substacks
-            project.layers.forEach((layer, layerIdx) => {
-                if (layer.substacks) {
-                    const subIdx = layer.substacks.findIndex(s => s.id === clickedNode.id);
-                    if (subIdx !== -1) {
-                        selectedLayerIndex = layerIdx;
-                        selectedSubstackIndex = subIdx;
-                        inSubstack = true;
-                        renderDiagram();
-                        renderLayerDetails(clickedNode);
-                    }
-                }
-            });
         }
     }
 }

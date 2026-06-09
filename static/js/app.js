@@ -2,6 +2,11 @@ let project = null;
 let selectedLayerIndex = 0;
 let inSubstack = false;
 let selectedSubstackIndex = 0;
+// Path-based selection for arbitrary nesting depth (Gap 1, part 3). When set
+// to an array of node ids from a top-level layer down to the focused node, it
+// is the source of truth for the details panel and overrides the 2-level
+// inSubstack/selectedSubstackIndex pair. Null = use the 2-level carousel state.
+let selectedNodePath = null;
 let undoStack = [];
 let redoStack = [];
 let selectedActionId = null;  // Track selected action in Actions View
@@ -568,6 +573,12 @@ function buildStackCostTooltip() {
 
 
 function selectLayer(index, skipDetailsUpdate = false) {
+    // Carousel selection is the 2-level path; clear any deep focus so the
+    // details panel follows the carousel again (unless we're only restyling).
+    if (!skipDetailsUpdate) {
+        selectedNodePath = null;
+    }
+
     const layers = inSubstack && project.layers[selectedLayerIndex].substacks 
         ? project.layers[selectedLayerIndex].substacks 
         : project.layers;
@@ -722,6 +733,57 @@ function findNodeContainer(id, nodes = project.layers, parent = null) {
 }
 
 /**
+ * The node currently shown in the details panel. When selectedNodePath is set
+ * (deep navigation), the last node on that path wins; otherwise fall back to
+ * the 2-level carousel state.
+ */
+function getCurrentNode() {
+    if (selectedNodePath && selectedNodePath.length > 0) {
+        const found = findNodePath(selectedNodePath[selectedNodePath.length - 1]);
+        if (found) return found.node;
+        selectedNodePath = null; // stale path; fall through
+    }
+    if (inSubstack) {
+        const parent = project.layers[selectedLayerIndex];
+        return parent && parent.substacks ? parent.substacks[selectedSubstackIndex] : parent;
+    }
+    return project.layers[selectedLayerIndex];
+}
+
+/**
+ * Focus a node by id at any depth and render its details (with breadcrumb).
+ * Keeps the 2-level carousel state aligned to the node's top-level ancestor so
+ * the stack view stays sensible.
+ */
+function focusNodeByPath(id) {
+    const found = findNodePath(id);
+    if (!found) return;
+    selectedNodePath = found.path.map(n => n.id);
+
+    const topId = found.path[0].id;
+    const topIdx = project.layers.findIndex(l => String(l.id) === String(topId));
+    if (topIdx !== -1) {
+        selectedLayerIndex = topIdx;
+        if (found.path.length >= 2) {
+            const parent = project.layers[topIdx];
+            const childIdx = (parent.substacks || []).findIndex(s => String(s.id) === String(found.path[1].id));
+            inSubstack = childIdx !== -1;
+            selectedSubstackIndex = childIdx !== -1 ? childIdx : 0;
+        } else {
+            inSubstack = false;
+        }
+    }
+    renderLayerDetails(found.node);
+}
+
+/**
+ * Clear deep-navigation focus (back to plain carousel selection).
+ */
+function clearNodeFocus() {
+    selectedNodePath = null;
+}
+
+/**
  * Set (or clear) the action path highlighted on the diagram. Pass an action
  * object to highlight its layers, or null to clear. Re-renders the diagram if
  * it's the active view so the highlight reflects immediately.
@@ -862,7 +924,28 @@ function generateFlowDescription(path) {
 
 function getAvailableConnectionTargets(layer) {
     const targets = [];
-    
+
+    // Deep-focused node (nesting beyond level 2): offer every other node in
+    // the project as a target, labeled with its parent for disambiguation.
+    if (selectedNodePath && selectedNodePath.length > 0) {
+        const selfId = layer.id;
+        const walk = (nodes, parentName) => {
+            (nodes || []).forEach(n => {
+                if (String(n.id) !== String(selfId)) {
+                    targets.push({
+                        id: n.id,
+                        name: parentName ? `${n.name} (${parentName})` : n.name,
+                        type: n.type,
+                        isSubstack: !!parentName
+                    });
+                }
+                if (n.substacks && n.substacks.length) walk(n.substacks, n.name);
+            });
+        };
+        walk(project.layers, null);
+        return targets;
+    }
+
     if (inSubstack) {
         // When editing a substack, show:
         // 1. All main layers (except parent)
@@ -971,9 +1054,7 @@ function switchDetailTab(tabName) {
 }
 
 function toggleConnection(targetId, isConnected, connectionType = 'HTTP') {
-    const currentLayer = inSubstack 
-        ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
-        : project.layers[selectedLayerIndex];
+    const currentLayer = getCurrentNode();
     
     // Ensure targetId is a number if it's a main layer, or string if it's a substack
     const allLayers = getAllLayers();
@@ -1023,9 +1104,7 @@ function toggleConnection(targetId, isConnected, connectionType = 'HTTP') {
 }
 
 function updateConnectionType(targetId, newType) {
-    const currentLayer = inSubstack 
-        ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
-        : project.layers[selectedLayerIndex];
+    const currentLayer = getCurrentNode();
     
     // Ensure targetId is a number if it's a main layer, or string if it's a substack
     const allLayers = getAllLayers();
@@ -1070,9 +1149,7 @@ function updateConnectionType(targetId, newType) {
  * Renders on the diagram edge and in the connection tooltip (Gap 6).
  */
 function updateConnectionLabel(targetId, label) {
-    const currentLayer = inSubstack
-        ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
-        : project.layers[selectedLayerIndex];
+    const currentLayer = getCurrentNode();
     if (!currentLayer.connections) return;
 
     const allLayers = getAllLayers();
@@ -1096,16 +1173,24 @@ function updateConnectionLabel(targetId, label) {
 }
 
 function addSubstackLayer() {
-    const parentLayer = project.layers[selectedLayerIndex];
+    // Add a substack to the currently-focused node (any depth), not just the
+    // top-level carousel layer.
+    const parentLayer = getCurrentNode();
+    if (!parentLayer) return;
     if (!parentLayer.substacks) {
         parentLayer.substacks = [];
     }
     
     saveState();
     
-    const substackIndex = parentLayer.substacks.length + 1;
+    // Unique id: parentId_<n>, bumped until free (handles deep + reordered ids).
+    let n = parentLayer.substacks.length + 1;
+    const existing = new Set(getAllLayers().map(l => String(l.id)));
+    let newId = `${parentLayer.id}_${n}`;
+    while (existing.has(newId)) { n++; newId = `${parentLayer.id}_${n}`; }
+
     const newSubstack = {
-        id: `${parentLayer.id}_${substackIndex}`,
+        id: newId,
         name: 'New Substack',
         type: parentLayer.type,
         status: 'Active',
@@ -1115,7 +1200,8 @@ function addSubstackLayer() {
         connections: [],
         dependencies: [],
         visible: true,
-        locked: false
+        locked: false,
+        substacks: []
     };
     
     parentLayer.substacks.push(newSubstack);
@@ -1132,9 +1218,7 @@ function addSubstackLayer() {
 function updateLayerField(field, value) {
     saveState();
     
-    const currentLayer = inSubstack 
-        ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
-        : project.layers[selectedLayerIndex];
+    const currentLayer = getCurrentNode();
     currentLayer[field] = value;
     saveProject();
 
@@ -1143,10 +1227,15 @@ function updateLayerField(field, value) {
     const affectsOtherViews = field === 'name' || field === 'type' || field === 'status';
     if (affectsOtherViews) {
         renderLayers();
-        const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
-        // skipDetailsUpdate: the details panel already shows the edited value;
-        // rebuilding it would discard the user's open tab / scroll position.
-        selectLayer(currentIndex, true);
+        if (selectedNodePath) {
+            // Deep-focused: keep the carousel as-is, just refresh deep details.
+            renderLayerDetails(currentLayer);
+        } else {
+            const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
+            // skipDetailsUpdate: the details panel already shows the edited value;
+            // rebuilding it would discard the user's open tab / scroll position.
+            selectLayer(currentIndex, true);
+        }
         updateStats();
         if (currentView === 'diagram') {
             renderDiagram();
@@ -1157,9 +1246,7 @@ function updateLayerField(field, value) {
 function updateCostField(field, value) {
     saveState();
     
-    const currentLayer = inSubstack 
-        ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
-        : project.layers[selectedLayerIndex];
+    const currentLayer = getCurrentNode();
     
     // Initialize costModel if it doesn't exist
     if (!currentLayer.costModel) {
@@ -1232,6 +1319,38 @@ function moveLayer(direction) {
 }
 
 function deleteLayer() {
+    // Deep-focused node: delete from its real container at any depth, then
+    // focus its parent (or clear focus if it was top-level).
+    if (selectedNodePath && selectedNodePath.length > 0) {
+        const focusId = selectedNodePath[selectedNodePath.length - 1];
+        const container = findNodeContainer(focusId);
+        if (!container) { selectedNodePath = null; return; }
+        if (!container.parent && project.layers.length === 1) {
+            alert('Cannot delete the last layer');
+            return;
+        }
+        const node = container.siblings[container.index];
+        const kids = node.substacks && node.substacks.length ? ` and its ${node.substacks.length} substack(s)` : '';
+        if (!confirm(`Delete "${node.name}"${kids}?`)) return;
+
+        saveState();
+        container.siblings.splice(container.index, 1);
+        saveProject();
+
+        if (container.parent) {
+            focusNodeByPath(container.parent.id);  // drop back to the parent
+        } else {
+            selectedNodePath = null;
+            selectedLayerIndex = Math.max(0, container.index - 1);
+            inSubstack = false;
+        }
+        renderLayers();
+        if (!selectedNodePath) selectLayer(selectedLayerIndex);
+        updateStats();
+        if (currentView === 'diagram') refreshDiagramLayout();
+        return;
+    }
+
     const layers = inSubstack && project.layers[selectedLayerIndex].substacks 
         ? project.layers[selectedLayerIndex].substacks 
         : project.layers;
