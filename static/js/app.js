@@ -182,18 +182,16 @@ function toggleView(view) {
 }
 
 function calculateTotalLayerCost(layer) {
-    // Sum a layer's monthly-ish fixed cost including substacks. Used for the
-    // stack-view badge color thresholds. (Percentage/variable costs are
+    // Sum a node's fixed cost including ALL descendants (any depth). Used for
+    // the stack-view badge color thresholds. (Percentage/variable costs are
     // per-transaction, so they're surfaced separately, not summed here.)
-    let totalCost = layer.costModel?.fixedCost || 0;
-    
-    if (layer.substacks && layer.substacks.length > 0) {
-        layer.substacks.forEach(substack => {
-            totalCost += substack.costModel?.fixedCost || 0;
-        });
-    }
-    
-    return totalCost;
+    let total = 0;
+    const walk = (node) => {
+        total += node.costModel?.fixedCost || 0;
+        if (node.substacks && node.substacks.length > 0) node.substacks.forEach(walk);
+    };
+    walk(layer);
+    return total;
 }
 
 /**
@@ -237,22 +235,18 @@ function nodeOwnCostComponents(node) {
 }
 
 function getLayerCostComponents(layer, opts) {
-    // Collect all cost components (layer + its substacks), honoring the
-    // status/actor cost-scope filter.
+    // Collect cost components for a node and ALL its descendants (any depth),
+    // honoring the status/actor cost-scope filter.
     const components = [];
-
-    if (nodeCountsForCost(layer, opts)) {
-        components.push(...nodeOwnCostComponents(layer));
-    }
-
-    if (layer.substacks && layer.substacks.length > 0) {
-        layer.substacks.forEach(substack => {
-            if (nodeCountsForCost(substack, opts)) {
-                components.push(...nodeOwnCostComponents(substack));
-            }
-        });
-    }
-
+    const walk = (node) => {
+        if (nodeCountsForCost(node, opts)) {
+            components.push(...nodeOwnCostComponents(node));
+        }
+        if (node.substacks && node.substacks.length > 0) {
+            node.substacks.forEach(walk);
+        }
+    };
+    walk(layer);
     return components;
 }
 
@@ -678,14 +672,53 @@ function exitSubstack() {
 
 
 function getAllLayers() {
+    // Recursively flatten the node tree (layers → substacks → ...) to any
+    // depth. Substacks can themselves contain substacks (n-level nesting).
     const layers = [];
-    project.layers.forEach(layer => {
-        layers.push(layer);
-        if (layer.substacks) {
-            layer.substacks.forEach(sub => layers.push(sub));
-        }
-    });
+    const walk = (nodes) => {
+        if (!Array.isArray(nodes)) return;
+        nodes.forEach(node => {
+            layers.push(node);
+            if (node.substacks && node.substacks.length > 0) walk(node.substacks);
+        });
+    };
+    walk(project.layers);
     return layers;
+}
+
+/**
+ * Find a node and its ancestry path by id, searching the full tree.
+ * Returns { node, path } where path is the array of ancestor nodes from the
+ * top-level layer down to (and including) the node, or null if not found.
+ */
+function findNodePath(id, nodes = project.layers, trail = []) {
+    if (!Array.isArray(nodes)) return null;
+    for (const node of nodes) {
+        const here = trail.concat(node);
+        if (String(node.id) === String(id)) return { node, path: here };
+        if (node.substacks && node.substacks.length > 0) {
+            const found = findNodePath(id, node.substacks, here);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
+/**
+ * The parent array that directly contains the node with the given id (i.e. the
+ * array to splice for delete/reorder), or project.layers if it's top-level.
+ * Returns { siblings, index, parent } or null.
+ */
+function findNodeContainer(id, nodes = project.layers, parent = null) {
+    if (!Array.isArray(nodes)) return null;
+    for (let i = 0; i < nodes.length; i++) {
+        if (String(nodes[i].id) === String(id)) return { siblings: nodes, index: i, parent };
+        if (nodes[i].substacks && nodes[i].substacks.length > 0) {
+            const found = findNodeContainer(id, nodes[i].substacks, nodes[i]);
+            if (found) return found;
+        }
+    }
+    return null;
 }
 
 /**

@@ -56,20 +56,18 @@ function migrateConnectionFormat(layer) {
     delete layer.connectionTypes;
 }
 
-// Apply migration to all layers in a project
+// Apply connection migration to all nodes in a project (recursive — handles
+// substacks nested to any depth).
 function migrateProjectConnections(project) {
     if (!project || !project.layers) return;
-    
-    project.layers.forEach(layer => {
-        migrateConnectionFormat(layer);
-        
-        // Also migrate substacks
-        if (layer.substacks && Array.isArray(layer.substacks)) {
-            layer.substacks.forEach(substack => {
-                migrateConnectionFormat(substack);
-            });
-        }
-    });
+    const walk = (nodes) => {
+        if (!Array.isArray(nodes)) return;
+        nodes.forEach(node => {
+            migrateConnectionFormat(node);
+            if (node.substacks && node.substacks.length > 0) walk(node.substacks);
+        });
+    };
+    walk(project.layers);
 }
 
 // Migration function: Convert old use path format to new step-based format
@@ -132,17 +130,18 @@ function migrateUsePathFormat(usePath, project) {
     return usePath;
 }
 
-// Helper function to get all layers from a project (used during migration)
+// Helper function to get all layers from a project (used during migration).
+// Recursive — substacks may themselves contain substacks (n-level).
 function getAllLayersFromProject(project) {
     const allLayers = [];
-    if (project && project.layers) {
-        project.layers.forEach(layer => {
-            allLayers.push(layer);
-            if (layer.substacks && Array.isArray(layer.substacks)) {
-                allLayers.push(...layer.substacks);
-            }
+    const walk = (nodes) => {
+        if (!Array.isArray(nodes)) return;
+        nodes.forEach(node => {
+            allLayers.push(node);
+            if (node.substacks && node.substacks.length > 0) walk(node.substacks);
         });
-    }
+    };
+    if (project && project.layers) walk(project.layers);
     return allLayers;
 }
 
@@ -223,25 +222,17 @@ function migrateCostModel(costModel) {
     };
 }
 
-// Apply cost model migration to all layers and substacks
+// Apply cost model migration to all nodes (recursive — any nesting depth).
 function migrateProjectCostModels(project) {
     if (!project || !project.layers) return project;
-    
-    project.layers.forEach(layer => {
-        if (layer.costModel) {
-            layer.costModel = migrateCostModel(layer.costModel);
-        }
-        
-        // Migrate substacks
-        if (layer.substacks && Array.isArray(layer.substacks)) {
-            layer.substacks.forEach(substack => {
-                if (substack.costModel) {
-                    substack.costModel = migrateCostModel(substack.costModel);
-                }
-            });
-        }
-    });
-    
+    const walk = (nodes) => {
+        if (!Array.isArray(nodes)) return;
+        nodes.forEach(node => {
+            if (node.costModel) node.costModel = migrateCostModel(node.costModel);
+            if (node.substacks && node.substacks.length > 0) walk(node.substacks);
+        });
+    };
+    walk(project.layers);
     return project;
 }
 

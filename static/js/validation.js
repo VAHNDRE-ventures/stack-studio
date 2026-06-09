@@ -99,23 +99,19 @@ class ProjectValidator {
     }
     
     /**
-     * Get all valid layer IDs in the project (including substacks)
+     * Get all valid layer IDs in the project (including substacks at any depth)
      */
     getAllLayerIds(project) {
         const ids = [];
-        
         if (!project.layers) return ids;
-        
-        project.layers.forEach(layer => {
-            ids.push(layer.id);
-            
-            if (layer.substacks && Array.isArray(layer.substacks)) {
-                layer.substacks.forEach(substack => {
-                    ids.push(substack.id);
-                });
-            }
-        });
-        
+        const walk = (nodes) => {
+            if (!Array.isArray(nodes)) return;
+            nodes.forEach(node => {
+                ids.push(node.id);
+                if (node.substacks && node.substacks.length > 0) walk(node.substacks);
+            });
+        };
+        walk(project.layers);
         return ids;
     }
     

@@ -1,0 +1,49 @@
+{
+  "name": "Nested Depth Test",
+  "avgTransactionValue": 100,
+  "layers": [
+    {
+      "id": 1,
+      "name": "Platform",
+      "type": "Core",
+      "status": "Active",
+      "description": "Top-level node with 3 levels of nesting beneath it.",
+      "connections": [{ "targetId": "1_1", "type": "HTTP" }],
+      "costModel": { "currency": "USD", "period": "month", "fixedCost": 100, "variableCost": 0, "variableUnit": "per-request" },
+      "substacks": [
+        {
+          "id": "1_1",
+          "name": "Edge Layer",
+          "type": "Backend",
+          "status": "Active",
+          "description": "Level 2.",
+          "connections": [{ "targetId": "1_1_1", "type": "HTTP", "label": "internal call" }],
+          "costModel": { "currency": "USD", "period": "month", "fixedCost": 50, "variableCost": 0, "variableUnit": "per-request" },
+          "substacks": [
+            {
+              "id": "1_1_1",
+              "name": "Auth Worker",
+              "type": "Backend",
+              "status": "Active",
+              "description": "Level 3 — nested two deep. This is what depth-1 couldn't express.",
+              "connections": [{ "targetId": "1_1_1_1", "type": "Cache" }],
+              "costModel": { "currency": "USD", "period": "month", "fixedCost": 25, "variableCost": 0, "variableUnit": "per-request" },
+              "substacks": [
+                {
+                  "id": "1_1_1_1",
+                  "name": "Token Cache",
+                  "type": "Database",
+                  "status": "Active",
+                  "description": "Level 4 — nested three deep.",
+                  "connections": [],
+                  "costModel": { "currency": "USD", "period": "month", "fixedCost": 10, "variableCost": 0, "variableUnit": "per-read" },
+                  "substacks": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
