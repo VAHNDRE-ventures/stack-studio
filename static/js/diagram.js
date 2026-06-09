@@ -36,7 +36,8 @@ function loadSnapPrefs() {
         const s = localStorage.getItem('ztack_snap');
         if (s !== null) snapToGrid = s === '1';
         const g = parseInt(localStorage.getItem('ztack_snap_size') || '', 10);
-        if (!isNaN(g) && g >= 1) snapGridSize = g;
+        // Valid grid sizes are 5..20 in steps of 5; coerce older/invalid prefs.
+        if (!isNaN(g) && g >= 1) snapGridSize = Math.min(20, Math.max(5, Math.round(g / 5) * 5));
     } catch (e) {}
 }
 
@@ -123,7 +124,7 @@ function addZoomControls() {
                 <span>Snap to grid</span>
             </label>
             <select id="snap-size" title="Grid size" style="background:#0f172a; color:#e2e8f0; border:1px solid #334155; border-radius:4px; padding:3px 6px; font-size:12px; cursor:pointer;">
-                ${[2,3,4,5].map(n => `<option value="${n}" ${snapGridSize===n?'selected':''}>${n}px</option>`).join('')}
+                ${[5,10,15,20].map(n => `<option value="${n}" ${snapGridSize===n?'selected':''}>${n}px</option>`).join('')}
             </select>
         `;
         container.appendChild(snap);

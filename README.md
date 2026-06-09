@@ -92,7 +92,7 @@ the migration rules.
 - **Diagram view**: drag nodes to reposition them (positions are saved with
   the project), drag the canvas to pan, scroll to zoom. The toolbar has zoom,
   Fit, and Auto-arrange (↻) controls. A **Snap to grid** toggle (top-left, with
-  a 2–5px size picker) aligns dragged nodes to a grid and shows it while on.
+  a 5–20px size picker) aligns dragged nodes to a grid and shows it while on.
   Connection lines are labeled with their type; hover a node to highlight its
   connections. When an action is selected, a dropdown (top-left) highlights its
   path across the diagram.
