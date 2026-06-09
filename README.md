@@ -21,9 +21,15 @@ It offers four synchronized views over a single project model:
 - **Actions** — named request paths traced across layers, with cost-per-operation.
 - **Cost** — a roll-up of per-layer fixed, variable, and percentage-of-value
   costs, with a Current/Projected scope toggle and a per-transaction view.
+---
+
+![Stack view](screenshot-stack.png)
+
+---
 
 ![Diagram view](screenshot-diagram.png)
-![Stack view](screenshot-stack.png)
+
+---
 
 ## Run it
 
