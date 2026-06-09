@@ -90,6 +90,10 @@ setTimeout(async () => {
         setLayoutMode('stack');
         recalculateLayout();
         r.stackDiffers = JSON.stringify(nodePositions['B']) !== before;
+
+        // Auto-flow-on-load: a grouped project should report projectHasGroups
+        // true, which the open/import paths use to switch into Flow layout.
+        r.projectHasGroups = (typeof projectHasGroups === 'function') && projectHasGroups();
     } catch(e) { window.__errors.push('script: ' + e.message); }
     r.errors = window.__errors;
     const out = document.createElement('pre'); out.id='out'; out.textContent = JSON.stringify(r); document.body.appendChild(out);
@@ -122,6 +126,7 @@ log(r.bandCount === 3, `3 phase bands drawn (got ${r.bandCount}: ${(r.bandNames|
 log(r.bandsOrdered === true, 'phase bands ordered top→bottom by groupOrder');
 log(r.bandsDisjoint === true, 'phase bands do not vertically overlap');
 log(r.stackDiffers === true, 'toggling to Stack mode changes the layout');
+log(r.projectHasGroups === true, 'grouped project detected (drives auto-Flow on open/import)');
 
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);

@@ -1583,11 +1583,19 @@ function importProject() {
         reader.onload = (event) => {
             try {
                 project = JSON.parse(event.target.result);
+                if (typeof migrateProject === 'function') migrateProject(project);
                 document.getElementById('project-title').textContent = project.name;
                 saveProject();
                 renderLayers();
                 updateStats();
                 selectLayer(0);
+                // A grouped project (e.g. a saved Mermaid/flow import) reads
+                // best in Flow layout — switch to it on open so it doesn't load
+                // in the composition (Stack) layout, which sprawls flow graphs.
+                if (typeof setLayoutMode === 'function' && typeof projectHasGroups === 'function' && projectHasGroups()) {
+                    setLayoutMode('flow');
+                    if (currentView === 'diagram' && typeof autoArrangeDiagram === 'function') autoArrangeDiagram();
+                }
             } catch (error) {
                 alert('Error loading project file');
             }
