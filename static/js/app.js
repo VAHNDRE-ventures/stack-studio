@@ -105,6 +105,63 @@ function redo() {
     }
 }
 
+// Persist + apply the sidebar width via the shared --panel-width CSS variable,
+// which both the panel and its toggle handle read (keeps them glued together).
+const PANEL_WIDTH_KEY = 'ztack_panel_width';
+const PANEL_MIN_WIDTH = 300;
+
+function setPanelWidth(px) {
+    const maxPx = Math.round(window.innerWidth * 0.7);
+    const clamped = Math.max(PANEL_MIN_WIDTH, Math.min(px, maxPx));
+    document.documentElement.style.setProperty('--panel-width', clamped + 'px');
+    try { localStorage.setItem(PANEL_WIDTH_KEY, String(clamped)); } catch (e) {}
+    return clamped;
+}
+
+// Drag-to-resize the details panel from its left edge.
+function initPanelResize() {
+    const handle = document.getElementById('panel-resize-handle');
+    const panel = document.getElementById('details-panel');
+    if (!handle || !panel) return;
+
+    // Restore a saved width.
+    const saved = parseInt(localStorage.getItem(PANEL_WIDTH_KEY) || '', 10);
+    if (!isNaN(saved)) setPanelWidth(saved);
+
+    let dragging = false;
+
+    const onMove = (e) => {
+        if (!dragging) return;
+        // Panel is anchored to the right; width grows as the cursor moves left.
+        setPanelWidth(window.innerWidth - e.clientX);
+        if (currentView === 'diagram' && canvas) resizeCanvas();
+    };
+
+    const onUp = () => {
+        if (!dragging) return;
+        dragging = false;
+        panel.classList.remove('resizing');
+        handle.classList.remove('active');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // Final reflow for the stack carousel (which positions by pane width).
+        if (currentView === 'stack') {
+            selectLayer(inSubstack ? selectedSubstackIndex : selectedLayerIndex, true);
+        }
+    };
+
+    handle.addEventListener('mousedown', (e) => {
+        // Don't resize while collapsed.
+        if (panel.classList.contains('collapsed')) return;
+        e.preventDefault();
+        dragging = true;
+        panel.classList.add('resizing');
+        handle.classList.add('active');
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    });
+}
+
 // Toggle details panel
 function toggleDetailsPanel() {
     const panel = document.getElementById('details-panel');
@@ -1712,6 +1769,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Submenus (e.g. Templates) open on hover via CSS; no JS needed.
+
+    initPanelResize();
 
     document.addEventListener('click', () => {
         document.querySelectorAll('.dropdown-menu.open').forEach(d => d.classList.remove('open'));

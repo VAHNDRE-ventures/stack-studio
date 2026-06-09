@@ -152,7 +152,7 @@ function zoomToFit() {
     const scaleX = (canvas.width * 0.9) / contentWidth;
     const scaleY = (canvas.height * 0.9) / contentHeight;
 
-    zoomLevel = Math.max(0.3, Math.min(scaleX, scaleY, 2));
+    zoomLevel = Math.max(0.15, Math.min(scaleX, scaleY, 2));
     panX = (canvas.width / 2 - (minX + maxX) / 2 * zoomLevel);
     panY = (canvas.height / 2 - (minY + maxY) / 2 * zoomLevel);
 
@@ -200,11 +200,63 @@ function recalculateLayout() {
     // Layout parameters
     const baseX = 200;
     const baseY = 200;
-    const levelSpacing = 700;
     const nodeWidth = 200;
     const nodeHeight = 120;
-    const minVerticalSpacing = 200; // Minimum space between node centers
-    const minHorizontalSpacing = 250; // Minimum space between nodes horizontally
+    const minVerticalSpacing = 120; // space between sibling subtrees in a level
+    const minHorizontalSpacing = 250;
+    const childXStep = 320;          // horizontal step per nesting level
+    const levelGap = 220;            // gap between a level's right edge and the next level
+
+    // Max nesting depth under a node (a leaf = 0). Used to compute how far a
+    // level's subtrees extend rightward, so the next level can start clear of
+    // them instead of using a fixed (often-too-wide) column spacing.
+    function subtreeDepth(node) {
+        if (!node.substacks || node.substacks.length === 0) return 0;
+        return 1 + Math.max(...node.substacks.map(subtreeDepth));
+    }
+
+    // X coordinate for each dependency level, computed cumulatively so columns
+    // are spaced by their actual content width (fixes "massive + compact").
+    // Long chains are wrapped into multiple rows so the diagram stays close to
+    // the viewport aspect instead of becoming one very wide ribbon.
+    const sortedLevels = Object.keys(layersByLevel).map(Number).sort((a, b) => a - b);
+    const MAX_COLS_PER_ROW = 5;   // wrap the dependency flow after this many levels
+    const ROW_GAP = 420;          // vertical gap between wrapped bands
+    const levelX = {};
+    const levelRow = {};
+    let cursorX = baseX;
+    let rowStartLevel = 0;
+    sortedLevels.forEach((level, idx) => {
+        const col = idx % MAX_COLS_PER_ROW;
+        if (col === 0 && idx > 0) {
+            cursorX = baseX;           // new band: reset X
+            rowStartLevel = idx;
+        }
+        levelX[level] = cursorX;
+        levelRow[level] = Math.floor(idx / MAX_COLS_PER_ROW);
+        const maxDepth = Math.max(0, ...layersByLevel[level].map(subtreeDepth));
+        const extent = nodeWidth + maxDepth * childXStep;
+        cursorX += extent + levelGap;
+    });
+
+    // Per-row vertical offset: each wrapped band sits below the previous one,
+    // clear of its tallest content.
+    const rowBaseY = {};
+    {
+        let y = baseY;
+        const rows = Math.max(0, ...Object.values(levelRow)) + 1;
+        for (let row = 0; row < rows; row++) {
+            rowBaseY[row] = y;
+            // Height of this row = max total leaves across its levels.
+            let maxLeaves = 1;
+            sortedLevels.forEach((lv, i) => {
+                if (Math.floor(i / MAX_COLS_PER_ROW) === row) {
+                    layersByLevel[lv].forEach(l => { maxLeaves = Math.max(maxLeaves, countLeaves(l)); });
+                }
+            });
+            y += maxLeaves * 150 + ROW_GAP;
+        }
+    }
     
     // Track occupied regions for collision detection
     const occupiedRegions = [];
@@ -258,20 +310,20 @@ function recalculateLayout() {
         });
     }
     
-    // Position layers level by level (left to right)
+    // Position layers level by level (left to right, wrapping into rows)
     Object.keys(layersByLevel).sort((a, b) => a - b).forEach(level => {
         const layersInLevel = layersByLevel[level];
-        let currentY = baseY;
+        let currentY = rowBaseY[levelRow[parseInt(level)]] || baseY;
         
         layersInLevel.forEach((layer, idx) => {
             // Reserve vertical space based on the layer's total leaf count
             // (full subtree), not just direct children, so deep trees don't
             // collide with the next top-level layer.
             const totalLeaves = countLeaves(layer);
-            const layerHeight = totalLeaves > 1 ? totalLeaves * 160 : 120;
+            const layerHeight = totalLeaves > 1 ? totalLeaves * 150 : 120;
             
             const basePosition = {
-                x: baseX + (parseInt(level) * levelSpacing),
+                x: levelX[parseInt(level)],   // content-aware column X
                 y: currentY
             };
             
@@ -294,8 +346,8 @@ function recalculateLayout() {
     
     // Position substacks relative to parents, recursively to any depth. Each
     // level steps further right; siblings are stacked vertically and spaced by
-    // their own subtree height so deep trees don't overlap.
-    const childXStep = 360;
+    // their own subtree height so deep trees don't overlap. (childXStep is
+    // defined above and shared with the column-extent calc.)
     const leafSpacing = 150;
 
     function placeChildren(node) {
