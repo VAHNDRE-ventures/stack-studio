@@ -31,7 +31,7 @@ Open imports it. Older documents are upgraded automatically on load (see
 | `avgTransactionValue` | number? | Average transaction value used to evaluate percentage-of-value costs. Defaults to `50`. Editable in the Cost dashboard. |
 | `layers` | Layer[] | The stack's top-level nodes. |
 | `usePaths` | Action[]? | Named operations traced through the stack. May be absent. |
-| `groupOrder` | string[]? | Ordered list of phase/lane names (see `Layer.group`). Used by the diagram's **Flow layout** to band phases in a deliberate order when flow ranks tie. Typically set by the Mermaid importer from subgraph declaration order. |
+| `groupOrder` | string[]? | Ordered list of phase/lane names, top→bottom, for the diagram's **Flow layout** (see [Flow View](#flow-view)). Matched against `Layer.group` by exact string equality. Required for phase banding — without it the Flow view shows no lanes. Typically set by the Mermaid importer from subgraph declaration order. |
 | `diagramPositions` | object? | `{ nodeId: {x, y} }` — manual node positions from the diagram, so a dragged layout survives reload. Written by node drag, group drag, snap, and auto-arrange. Keys are stringified node ids. |
 
 ---
@@ -72,7 +72,7 @@ breadcrumb.
 | `technology` | string? | Free text (e.g. `"PostgreSQL 16"`). |
 | `description` | string? | Long-form notes. |
 | `responsibilities` | string? | What the node is responsible for. |
-| `group` | string? | Phase/lane label. Nodes sharing a `group` are banded together in the diagram's **Flow layout** (a process stage like "Ingestion" or "Persistence"). Unlike a substack parent, a group is pure metadata — it creates no node and carries no cost. Set by the Mermaid importer from `subgraph` titles. |
+| `group` | string? | Phase/lane label for the **Flow layout** (see [Flow View](#flow-view)). Nodes sharing the exact same `group` string band together; the band's position comes from `groupOrder`. Pure metadata — creates no node, carries no cost, unrelated to `substacks`. Set by the Mermaid importer from `subgraph` titles. |
 | `connections` | Connection[] | Outgoing edges. See [Connection](#connection). |
 | `dependencies` | (number\|string)[]? | Reserved; not currently rendered. |
 | `visible` | boolean? | Reserved for show/hide. |
@@ -225,8 +225,134 @@ Lives in the project's `usePaths` array.
 
 ---
 
-## Migrations
+## Flow View
 
+The diagram has two layout modes. The **Stack** layout (the default) uses
+`substacks` for composition — a node *contains* its children, drawn nested in
+group boxes. The **Flow** layout renders the project as a layered process graph
+(top→bottom, like a Mermaid `flowchart TD`) and is driven by two fields only:
+`Layer.group` on each node and the project-level `groupOrder` array.
+
+This section documents **exactly** what those two fields must contain for the
+Flow view to render as intended. No other field affects Flow layout.
+
+### The two fields that drive Flow
+
+```jsonc
+{
+  "groupOrder": [                     // string[] — ordered phase/lane names
+    "1 · Source",
+    "2 · Ingest",
+    "3 · Store"
+  ],
+  "layers": [
+    { "id": "src1", "name": "Telemetry API", "group": "1 · Source",
+      "connections": [ { "targetId": "ing1", "type": "HTTP" } ] },
+    { "id": "ing1", "name": "Normalizer", "group": "2 · Ingest",
+      "connections": [ { "targetId": "store1", "type": "HTTP" } ] },
+    { "id": "store1", "name": "Data Store", "group": "3 · Store",
+      "connections": [] }
+  ]
+}
+```
+
+#### `Layer.group` (string, optional)
+
+- The **exact** lane label a node belongs to. It is matched against
+  `groupOrder` by **case-sensitive string equality** — `"2 · Ingest"` and
+  `"2 · ingest"` are different lanes.
+- A node with no `group`, an empty-string `group`, or a `group` **not present
+  in `groupOrder`** is treated as **ungrouped**: it is placed in a catch-all
+  region **below** all named phases. Ungrouped nodes are positioned but get
+  **no visible band** drawn around them (only named phases render a lane).
+- `group` is metadata only. It creates **no node**, has **no cost**, and is
+  unrelated to `substacks`. A Flow project should be **flat** — every node a
+  top-level entry in `layers` with a `group`, and `substacks` empty.
+- Two nodes with the same `group` string are in the same lane. Lane membership
+  is purely this string match; node `id`, `type`, and order in `layers` do not
+  affect which lane a node lands in.
+
+#### `Project.groupOrder` (string[], optional)
+
+- The **ordered** list of lane labels, top to bottom. Lane *N* renders above
+  lane *N+1*. This array is the **single source of truth for phase order** —
+  the order nodes appear in `layers` is ignored for banding.
+- Only labels that (a) appear in `groupOrder` **and** (b) are the `group` of at
+  least one node produce a band. A label in `groupOrder` with **no member
+  nodes** produces **no band and no empty space** (it is skipped).
+- A node whose `group` is **not** in `groupOrder` is ungrouped (placed in the
+  catch-all region below the lanes, no band drawn), regardless of `groupOrder`
+  contents.
+- If `groupOrder` is absent or empty, **no phase banding occurs** even if nodes
+  carry `group` values — the Flow view falls back to pure edge-rank layout with
+  no lanes. To get banded lanes you **must** provide `groupOrder`.
+
+### Exact trigger conditions
+
+Two distinct checks govern Flow behavior. They are not the same:
+
+| Behavior | Function | Exact condition |
+|----------|----------|-----------------|
+| Auto-switch to Flow layout on **Open / Import** | `projectHasGroups()` | At least one node has a truthy string `group`. `groupOrder` is **not** required for this. |
+| Render **phase lanes** (banding + per-phase packing) | `hasPhases` (in `computeFlowLayout`) | `groupOrder` is a non-empty array **AND** at least one node's `group` is found in `groupOrder`. |
+
+Consequence: a project with `group` tags but **no** `groupOrder` will open in
+Flow layout (auto-switch fires) but render **without lanes** (banding does not
+fire). Always ship both fields together for a banded Flow diagram.
+
+### How edges behave in Flow
+
+Flow layout reads `connections` exactly as Stack does (see
+[Connection](#connection)) — no Flow-specific connection fields. Direction and
+routing are derived:
+
+- **Rank** of a node = longest forward path from a source (`indeg === 0`) along
+  `connections`. Higher rank = lower on the canvas.
+- **Back-edges** (an edge that closes a cycle — its target is still being
+  visited on the current depth-first path) are **excluded from ranking** so
+  cycles don't loop forever, then drawn as side-routed return connectors. No
+  field marks an edge as a back-edge; it is detected from the graph topology.
+- When phases are active, a node's rank is **floored to its phase's position**
+  in `groupOrder`, so every node in lane *N* sits below every node in lane
+  *N−1* even if an edge would otherwise pull it up.
+- Edge `type` and `label` render identically to Stack mode.
+
+### What Flow does NOT use
+
+To be unambiguous, these fields have **no effect** on Flow **placement**:
+`type`, `status`, `technology`, `costModel`, `responsibilities`, `substacks`,
+`dependencies`, `visible`, `locked`, `usePaths`. `type`/`status` still affect a
+node's **appearance** (color, shape, dashed border) in both modes, but not its
+position in Flow.
+
+`diagramPositions` **is** still honored in Flow: after the ranked/banded layout
+is computed, any saved `{x,y}` for a node is applied over it (so a manual drag
+in Flow mode persists and survives a relayout, same as Stack). It does not
+drive the initial Flow arrangement — `group` + `groupOrder` + `connections` do.
+
+### Minimal valid Flow document
+
+```jsonc
+{
+  "name": "Order Pipeline",
+  "groupOrder": ["Intake", "Process", "Persist"],
+  "layers": [
+    { "id": "a", "name": "Webhook",  "type": "API",      "status": "Active",
+      "group": "Intake",  "connections": [ { "targetId": "b", "type": "HTTP" } ], "substacks": [] },
+    { "id": "b", "name": "Worker",   "type": "Backend",  "status": "Active",
+      "group": "Process", "connections": [ { "targetId": "c", "type": "Database", "label": "upsert" } ], "substacks": [] },
+    { "id": "c", "name": "Postgres", "type": "Database", "status": "Active",
+      "group": "Persist", "connections": [], "substacks": [] }
+  ]
+}
+```
+
+This renders three stacked lanes (Intake → Process → Persist), one node each,
+connected by orthogonal top→bottom edges.
+
+---
+
+## Migrations
 `migrateProject()` upgrades older documents on load. It is idempotent and
 preserves unknown-but-known fields:
 
