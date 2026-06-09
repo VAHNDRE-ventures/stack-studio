@@ -1731,6 +1731,11 @@ document.addEventListener('keydown', (e) => {
         redo();
         return;
     }
+
+    // Escape clears a diagram multi-selection (if any).
+    if (e.key === 'Escape' && currentView === 'diagram' && typeof clearDiagramSelection === 'function') {
+        clearDiagramSelection();
+    }
     
     if (isAnimating) return;
     

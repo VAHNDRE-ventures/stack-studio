@@ -41,6 +41,35 @@ function commitDragUndo() {
     dragStartSnapshot = null;
 }
 
+// ---------------------------------------------------------------------------
+// Multi-selection + group dragging.
+//
+// `selectedNodeIds` is the set of nodes the user has gathered (Ctrl/Cmd+click
+// to toggle, or Alt+drag a parent to grab its whole subtree). Dragging any
+// member moves the entire set together. `dragGroupStart` snapshots each moving
+// node's position at drag start so we can apply a single delta to all of them.
+// ---------------------------------------------------------------------------
+let selectedNodeIds = new Set();
+let dragGroupStart = null;            // { id: {x, y} } captured at drag start
+let dragAnchorX = 0, dragAnchorY = 0; // world coords where the drag began
+let suppressClick = false;            // skip the click after a drag / ctrl-toggle
+
+// All ids in a node's subtree (the node itself plus every descendant).
+function collectSubtreeIds(node, acc) {
+    acc = acc || [];
+    if (!node) return acc;
+    acc.push(node.id);
+    if (node.substacks) node.substacks.forEach(c => collectSubtreeIds(c, acc));
+    return acc;
+}
+
+// Clear the multi-selection (used by Escape / empty-canvas click).
+function clearDiagramSelection() {
+    if (selectedNodeIds.size === 0) return;
+    selectedNodeIds = new Set();
+    renderDiagram();
+}
+
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 120;
 
@@ -127,7 +156,7 @@ function addZoomControls() {
         <button onclick="zoomReset()" title="Reset zoom" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">100%</button>
         <button onclick="zoomOut()" title="Zoom out" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 16px;">\u2212</button>
         <button onclick="zoomToFit()" title="Fit to screen" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">Fit</button>
-        <button onclick="refreshDiagramLayout(true)" title="Auto-arrange nodes" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">\u21BB</button>
+        <button onclick="arrangeButtonClick()" title="Auto-arrange nodes (groups kept apart)" style="background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">\u21BB</button>
     `;
     container.appendChild(controls);
 
@@ -169,7 +198,7 @@ function addZoomControls() {
     if (!document.getElementById('diagram-hint')) {
         const hint = document.createElement('div');
         hint.id = 'diagram-hint';
-        hint.textContent = 'Drag nodes to reposition \u2022 drag canvas to pan \u2022 scroll to zoom';
+        hint.textContent = 'Drag to move \u2022 Ctrl+click to multi-select \u2022 Alt+drag a node to move its whole group \u2022 \u21BB auto-arranges';
         hint.style.cssText = 'position: absolute; bottom: 16px; left: 16px; background: rgba(15,23,42,0.85); border: 1px solid #334155; color: #94a3b8; padding: 6px 12px; border-radius: 4px; font-size: 11px; z-index: 100; pointer-events: none;';
         container.appendChild(hint);
     }
@@ -572,6 +601,127 @@ function refreshDiagramLayout(fit = false) {
     renderDiagram();
 }
 
+/**
+ * Auto-arrange: a full relayout followed by the group-separation pass, then a
+ * fit. This is what the toolbar's arrange button runs. It's kept separate from
+ * refreshDiagramLayout so undo/redo and structural relayouts don't shove a
+ * user's manual arrangement around — only an explicit arrange does that.
+ */
+function autoArrangeDiagram() {
+    if (!canvas || !ctx) return;
+    recalculateLayout();
+    separateTopLevelGroups();
+    zoomToFit();
+    renderDiagram();
+}
+
+// Toolbar arrange button: make the auto-arrange undoable by snapshotting the
+// project first, then run the group-aware arrange.
+function arrangeButtonClick() {
+    if (typeof project !== 'undefined' && typeof undoStack !== 'undefined') {
+        undoStack.push(JSON.stringify(project));
+        if (typeof MAX_HISTORY !== 'undefined' && undoStack.length > MAX_HISTORY) undoStack.shift();
+        if (typeof redoStack !== 'undefined') redoStack = [];
+    }
+    autoArrangeDiagram();
+}
+
+/**
+ * Compute the bounding box of a node's whole subtree (node + descendants),
+ * inflated by the same padding drawGroupBox uses at the given depth, so the
+ * box matches the dashed border drawn on screen.
+ */
+function groupBounds(node, depth) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    const acc = (n) => {
+        const p = nodePositions[n.id];
+        if (p) {
+            minX = Math.min(minX, p.x - NODE_WIDTH / 2);
+            maxX = Math.max(maxX, p.x + NODE_WIDTH / 2);
+            minY = Math.min(minY, p.y - NODE_HEIGHT / 2);
+            maxY = Math.max(maxY, p.y + NODE_HEIGHT / 2);
+        }
+        if (n.substacks) n.substacks.forEach(acc);
+    };
+    acc(node);
+    if (minX === Infinity) return null;
+    const padH = Math.max(60, 120 - depth * 25);
+    const padV = Math.max(45, 80 - depth * 15);
+    return { left: minX - padH, right: maxX + padH, top: minY - padV, bottom: maxY + padV };
+}
+
+/**
+ * Group-border-respecting auto-arrange. After the base layout runs, top-level
+ * groups (a top-level layer plus its whole subtree) can still overlap when
+ * trees are deep or were manually dragged. This pass nudges entire groups
+ * apart — translating every node in a group together — until their padded
+ * bounding boxes (the dashed "X Group" borders) no longer intersect.
+ *
+ * Only top-level layers that actually have substacks are treated as movable
+ * groups; childless layers are treated as single-node groups so they don't get
+ * swallowed by a neighbor's box.
+ */
+function separateTopLevelGroups() {
+    const layers = (project && project.layers) ? project.layers : [];
+    if (layers.length < 2) return;
+
+    const GAP = 24;            // breathing room between group borders
+    const MAX_PASSES = 60;
+
+    // Translate every node in a group's subtree by (dx, dy).
+    const shiftGroup = (node, dx, dy) => {
+        const move = (n) => {
+            const p = nodePositions[n.id];
+            if (p) { p.x += dx; p.y += dy; }
+            if (n.substacks) n.substacks.forEach(move);
+        };
+        move(node);
+    };
+
+    for (let pass = 0; pass < MAX_PASSES; pass++) {
+        let moved = false;
+
+        for (let i = 0; i < layers.length; i++) {
+            for (let j = i + 1; j < layers.length; j++) {
+                const a = groupBounds(layers[i], 0);
+                const b = groupBounds(layers[j], 0);
+                if (!a || !b) continue;
+
+                // Overlap on each axis (positive = overlapping).
+                const overlapX = Math.min(a.right, b.right) - Math.max(a.left, b.left) + GAP;
+                const overlapY = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) + GAP;
+
+                if (overlapX > 0 && overlapY > 0) {
+                    // Push apart along the axis of least penetration (smallest
+                    // shove that resolves the overlap), splitting the move
+                    // between the two groups so neither runs away.
+                    const aCenterX = (a.left + a.right) / 2, bCenterX = (b.left + b.right) / 2;
+                    const aCenterY = (a.top + a.bottom) / 2, bCenterY = (b.top + b.bottom) / 2;
+                    if (overlapX <= overlapY) {
+                        const dir = aCenterX <= bCenterX ? -1 : 1;
+                        const half = overlapX / 2;
+                        shiftGroup(layers[i], dir * half, 0);
+                        shiftGroup(layers[j], -dir * half, 0);
+                    } else {
+                        const dir = aCenterY <= bCenterY ? -1 : 1;
+                        const half = overlapY / 2;
+                        shiftGroup(layers[i], 0, dir * half);
+                        shiftGroup(layers[j], 0, -dir * half);
+                    }
+                    moved = true;
+                }
+            }
+        }
+
+        if (!moved) break;
+    }
+
+    // Re-snap to the grid if snapping is on so the arranged result stays clean.
+    if (snapToGrid) snapAllNodePositions();
+    // Persist the arranged layout so it survives reloads / view switches.
+    persistNodePositions();
+}
+
 function calculateLayerLevels() {
     const levels = {};
     const visited = new Set();
@@ -633,6 +783,27 @@ function calculateLayerLevels() {
 
 function renderDiagram() {
     renderDiagramWithHover();
+}
+
+// A bright dashed ring drawn just outside a node to mark it as part of the
+// active multi-selection (group drag / ctrl-select).
+function drawSelectionRing(x, y) {
+    const w = NODE_WIDTH + 16, h = NODE_HEIGHT + 16;
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 4]);
+    ctx.shadowColor = 'rgba(56, 189, 248, 0.6)';
+    ctx.shadowBlur = 8;
+    if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(x - w / 2, y - h / 2, w, h, 8);
+        ctx.stroke();
+    } else {
+        ctx.strokeRect(x - w / 2, y - h / 2, w, h);
+    }
+    ctx.restore();
+    ctx.setLineDash([]);
 }
 
 function drawNode(layer, x, y, isSelected) {
@@ -1030,19 +1201,55 @@ function handleCanvasMouseDown(e) {
 
     const node = getNodeAtPosition(x, y);
     if (node) {
-        // Begin dragging this node (real drag-to-reposition, finally).
+        const ctrl = e.ctrlKey || e.metaKey;
+        const alt = e.altKey;
+
+        // Ctrl/Cmd+click toggles a node in/out of the multi-selection without
+        // starting a drag, so the user can assemble a set across the canvas.
+        if (ctrl) {
+            if (selectedNodeIds.has(node.id)) selectedNodeIds.delete(node.id);
+            else selectedNodeIds.add(node.id);
+            suppressClick = true;       // don't also focus/deselect on click
+            renderDiagram();
+            return;
+        }
+
+        // Alt+drag a node grabs its entire subtree (the node + all descendants)
+        // as the moving set — quick way to relocate a whole group.
+        if (alt) {
+            const subtree = collectSubtreeIds(node);
+            selectedNodeIds = new Set(subtree);
+        } else if (!selectedNodeIds.has(node.id)) {
+            // Plain drag on a node outside the current selection: drag it alone
+            // and reset the selection to just it.
+            selectedNodeIds = new Set([node.id]);
+        }
+        // (If the node IS already in a multi-selection, keep the whole set so
+        // the group moves together.)
+
+        // Begin dragging. Snapshot the project for undo and capture the start
+        // position of every node in the moving set so we can apply one delta.
         draggedNodeId = node.id;
         dragMoved = false;
-        // Snapshot the project before the drag so the move can be undone. We
-        // capture here (not on mouseup) so the undo target is the pre-drag
-        // layout; it's only committed to the undo stack if the node actually
-        // moves (see commitDragUndo).
         dragStartSnapshot = (typeof project !== 'undefined') ? JSON.stringify(project) : null;
+        dragAnchorX = x;
+        dragAnchorY = y;
+        dragGroupStart = {};
+        selectedNodeIds.forEach(id => {
+            const p = nodePositions[id];
+            if (p) dragGroupStart[id] = { x: p.x, y: p.y };
+        });
+        // Safety: ensure the grabbed node is always part of the moving set.
+        if (!dragGroupStart[node.id] && nodePositions[node.id]) {
+            dragGroupStart[node.id] = { x: nodePositions[node.id].x, y: nodePositions[node.id].y };
+        }
         const pos = nodePositions[node.id];
         dragOffsetX = x - pos.x;
         dragOffsetY = y - pos.y;
         canvas.style.cursor = 'grabbing';
     } else {
+        // Mousedown on empty canvas: pan. (Selection is cleared on click, not
+        // here, so a pan-drag doesn't wipe the selection.)
         isPanning = true;
         panStartX = panX;
         panStartY = panY;
@@ -1052,15 +1259,24 @@ function handleCanvasMouseDown(e) {
 
 function handleCanvasMouseMove(e) {
     if (draggedNodeId !== null) {
-        // Drag the node under the cursor.
+        // Drag every node in the moving set by the same delta from the anchor.
         const rect = canvas.getBoundingClientRect();
         const x = (e.clientX - rect.left - panX) / zoomLevel;
         const y = (e.clientY - rect.top - panY) / zoomLevel;
-        const pos = nodePositions[draggedNodeId];
-        if (pos) {
-            // Snap the node center to the grid when snapping is enabled.
-            pos.x = snapCoord(x - dragOffsetX);
-            pos.y = snapCoord(y - dragOffsetY);
+        // Delta is measured from the drag anchor, then snapped, so the whole
+        // group shifts together and lands on the grid coherently.
+        let dx = x - dragAnchorX;
+        let dy = y - dragAnchorY;
+        if (snapToGrid && snapGridSize > 0) {
+            dx = Math.round(dx / snapGridSize) * snapGridSize;
+            dy = Math.round(dy / snapGridSize) * snapGridSize;
+        }
+        if (dragGroupStart) {
+            Object.keys(dragGroupStart).forEach(id => {
+                const start = dragGroupStart[id];
+                const p = nodePositions[id];
+                if (p && start) { p.x = start.x + dx; p.y = start.y + dy; }
+            });
             dragMoved = true;
             canvas.style.cursor = 'grabbing';
             renderDiagram();
@@ -1139,10 +1355,11 @@ function handleCanvasMouseMove(e) {
 
 function handleCanvasMouseUp() {
     if (draggedNodeId !== null) {
-        if (dragMoved) { commitDragUndo(); persistNodePositions(); }
+        if (dragMoved) { commitDragUndo(); persistNodePositions(); suppressClick = true; }
         draggedNodeId = null;
         dragMoved = false;
         dragStartSnapshot = null;
+        dragGroupStart = null;
     }
     isPanning = false;
     canvas.style.cursor = 'grab';
@@ -1153,6 +1370,7 @@ function handleCanvasMouseLeave() {
     draggedNodeId = null;
     dragMoved = false;
     dragStartSnapshot = null;
+    dragGroupStart = null;
     hoveredConnection = null;
     hoveredNodeId = null;
     isPanning = false;
@@ -1162,9 +1380,11 @@ function handleCanvasMouseLeave() {
 }
 
 function handleCanvasClick(e) {
-    // A click that concluded a drag should not also trigger selection.
-    if (dragMoved) {
+    // A click that concluded a drag or a ctrl-toggle should not also trigger
+    // selection/focus.
+    if (dragMoved || suppressClick) {
         dragMoved = false;
+        suppressClick = false;
         return;
     }
 
@@ -1174,6 +1394,9 @@ function handleCanvasClick(e) {
     
     const clickedNode = getNodeAtPosition(x, y);
     if (clickedNode) {
+        // A plain click on a node focuses it and collapses any multi-selection
+        // down to just that node (matches typical canvas-tool behavior).
+        selectedNodeIds = new Set([clickedNode.id]);
         // Focus the clicked node at any depth (handles top-level, direct
         // substacks, and deeply-nested nodes via the ancestry path).
         if (typeof focusNodeByPath === 'function') {
@@ -1187,6 +1410,12 @@ function handleCanvasClick(e) {
             }
             renderDiagram();
             renderLayerDetails(clickedNode);
+        }
+    } else {
+        // Click on empty canvas clears the multi-selection.
+        if (selectedNodeIds.size > 0) {
+            selectedNodeIds = new Set();
+            renderDiagram();
         }
     }
 }
@@ -1545,6 +1774,11 @@ function renderDiagramWithHover() {
             }
             ctx.globalAlpha = dim ? 0.25 : 1;
             drawNode(layer, nodePositions[layer.id].x, nodePositions[layer.id].y, isSelected);
+            // Multi-selection ring: a distinct outer highlight so the user can
+            // see every node in the moving set (group drag / ctrl-select).
+            if (selectedNodeIds.has(layer.id)) {
+                drawSelectionRing(nodePositions[layer.id].x, nodePositions[layer.id].y);
+            }
             ctx.globalAlpha = 1;
         }
     });

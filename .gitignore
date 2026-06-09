@@ -6,6 +6,9 @@ debug.log
 # Test harness artifacts
 _smoke_harness.html
 samples/_*.html
+samples/_*.json
+_*.html
+_*.json
 
 # Internal analysis notes (may reference confidential client architecture)
 STACK-STUDIO-SCHEMA-GAPS.md
