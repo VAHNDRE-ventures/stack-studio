@@ -452,6 +452,7 @@ visible effect in Stack today.
 | Structural field | `substacks` (nesting) | `group` + `groupOrder` (lanes) |
 | Question answered | "what is *part of* what" | "what *flows to* what" |
 | Node placement | parent → children to the right, nested boxes | ranked top→bottom by `connections` |
+| Edge routing | orthogonal, horizontal-major (left→right) | orthogonal, vertical-major (top→bottom) |
 | `group` / `groupOrder` | ignored | required for lanes |
 | `substacks` | the whole point | should be empty (flat) |
 | Costs | roll up through `substacks` | identical cost model, not used for layout |

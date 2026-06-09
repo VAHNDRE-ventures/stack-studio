@@ -1,10 +1,11 @@
 /**
- * Orthogonal edge routing check (flow mode). Drives the live app headless and
+ * Orthogonal edge routing check (both modes). Drives the live app headless and
  * asserts:
  *  - in Flow mode, connections carry a `route` polyline of right-angle segments
- *    (each segment is axis-aligned: shares an x or a y with its neighbor)
+ *    (vertical-major: exit bottom, enter top)
  *  - the route starts near the source box edge and ends near the target box edge
- *  - in Stack mode, connections have no route (straight lines)
+ *  - in Stack mode, connections also carry an orthogonal `route`, axis-aligned
+ *    (horizontal-major: exit side, jog in the column corridor)
  *  - hit-testing follows the polyline (a point on a mid segment is detected)
  * Run: node samples/check-ortho.mjs   (needs dev server on :8777)
  */
@@ -91,11 +92,15 @@ setTimeout(async () => {
             r.hitTestWorks = !!hit && hit.some(h => String(h.sourceId)==='A' && String(h.targetId)==='B');
         }
 
-        // Stack mode: no routes.
+        // Stack mode: now also routes orthogonally, but horizontal-major
+        // (edges exit the side, jog in the column corridor). Verify routes
+        // exist and are axis-aligned.
         setLayoutMode('stack');
         recalculateLayout();
         renderDiagram();
-        r.stackNoRoutes = connections.every(c => !c.route);
+        const stackRouted = connections.filter(c => c.route && c.route.length >= 2);
+        r.stackHasRoutes = stackRouted.length === connections.length && connections.length > 0;
+        r.stackAxisAligned = stackRouted.every(c => isAxisAligned(c.route));
     } catch(e) { window.__errors.push('script: ' + e.message); }
     r.errors = window.__errors;
     const out = document.createElement('pre'); out.id='out'; out.textContent = JSON.stringify(r); document.body.appendChild(out);
@@ -126,7 +131,8 @@ log(r.someElbows === true, 'routes include elbow bends');
 log(r.startsAtSourceEdge === true, 'route starts at the source box edge');
 log(r.endsAtTargetEdge === true, 'route ends at the target box edge');
 log(r.hitTestWorks === true, 'hit-testing follows the polyline');
-log(r.stackNoRoutes === true, 'Stack mode uses straight lines (no routes)');
+log(r.stackHasRoutes === true, 'Stack mode also routes orthogonally (horizontal-major)');
+log(r.stackAxisAligned === true, 'Stack-mode routes are axis-aligned (right angles)');
 
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);

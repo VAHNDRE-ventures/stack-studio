@@ -133,7 +133,11 @@ the migration rules.
   - **Layout modes** (the **Flow / Stack** toggle): StackStudio carries two
     orthogonal kinds of meaning, and the diagram can lay out either way:
     - **Stack** (composition) — the default. Substacks nest to the right of
-      their parent inside dashed group boxes. Right for architectures where a
+      their parent inside dashed group boxes (tinted, rounded, with a name
+      pill), and edges route as **orthogonal (right-angle) connectors**
+      (horizontal-major: exit a node's side, jog in the column corridor, enter
+      the next) so the dependency flow reads left→right. Overlapping top-level
+      group boxes are pushed apart on layout. Right for architectures where a
       service *owns* its sub-modules.
     - **Flow** (process) — a layered top→bottom layout like a Mermaid
       flowchart. Nodes are ranked by edge direction; nodes sharing a `group`
@@ -244,7 +248,8 @@ node samples/check-group-drag.mjs # headless: multi-select, group drag, group-aw
 node samples/check-export.mjs    # headless: hi-res PNG export bounds, aspect, restore
 node samples/check-mermaid.mjs   # pure: Mermaid → project conversion (shapes, edges, fan-out)
 node samples/check-flow.mjs      # headless: Flow layout ranks, phase bands, back-edges
-node samples/check-ortho.mjs     # headless: orthogonal edge routing in Flow mode
+node samples/check-ortho.mjs     # headless: orthogonal edge routing (both modes)
+node samples/check-stack-org.mjs # headless: stack grouping, boundary respect, L→R flow
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 

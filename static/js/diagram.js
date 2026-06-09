@@ -519,6 +519,12 @@ function recalculateLayout() {
 
     project.layers.forEach(layer => placeChildren(layer));
 
+    // Keep top-level group boxes from overlapping in the default layout (so it
+    // reads cleanly on load, not just after the arrange button). Non-persisting
+    // — manual drags below still take precedence via applySavedPositions.
+    const anyGroups = project.layers.some(l => l.substacks && l.substacks.length);
+    if (anyGroups) separateTopLevelGroups(false);
+
     // Restore any manually-saved positions over the computed defaults so a
     // user's drag arrangement survives view switches and reloads.
     applySavedPositions();
@@ -1258,7 +1264,7 @@ function groupBounds(node, depth) {
  * groups; childless layers are treated as single-node groups so they don't get
  * swallowed by a neighbor's box.
  */
-function separateTopLevelGroups() {
+function separateTopLevelGroups(persist = true) {
     const layers = (project && project.layers) ? project.layers : [];
     if (layers.length < 2) return;
 
@@ -1316,7 +1322,7 @@ function separateTopLevelGroups() {
     // Re-snap to the grid if snapping is on so the arranged result stays clean.
     if (snapToGrid) snapAllNodePositions();
     // Persist the arranged layout so it survives reloads / view switches.
-    persistNodePositions();
+    if (persist) persistNodePositions();
 }
 
 function calculateLayerLevels() {
@@ -1727,6 +1733,52 @@ function orthogonalRoute(cx1, cy1, cx2, cy2, sxOff = 0, txOff = 0) {
         { x: laneX, y: cy1 },
         { x: laneX, y: cy2 },
         { x: tEdgeX, y: cy2 }
+    ];
+}
+
+/**
+ * Horizontal-major orthogonal route for STACK mode, where dependency flows
+ * left→right (a node points at targets in the next column to its right). Exit
+ * the source's right (or left) face, jog vertically in the corridor between
+ * columns, and enter the target's opposite face. `syOff`/`tyOff` fan edges out
+ * vertically across each node's face so multiple edges to/from one node don't
+ * stack on a single line.
+ */
+function orthogonalRouteH(cx1, cy1, cx2, cy2, syOff = 0, tyOff = 0) {
+    const halfW = NODE_WIDTH / 2;
+    const gap = 2;
+    const sy = cy1 + syOff;
+    const ty = cy2 + tyOff;
+
+    // Forward (target clearly to the right): exit right, enter left, jog mid-X.
+    if (cx2 - cx1 > NODE_WIDTH) {
+        const sx = cx1 + halfW + gap;       // just right of source
+        const tx = cx2 - halfW - gap;       // just left of target
+        const midX = (sx + tx) / 2;
+        if (Math.abs(sy - ty) < 1) {
+            return [{ x: sx, y: sy }, { x: tx, y: ty }];
+        }
+        return [
+            { x: sx, y: sy },
+            { x: midX, y: sy },
+            { x: midX, y: ty },
+            { x: tx, y: ty }
+        ];
+    }
+
+    // Target to the left (back-edge) or roughly same column: route out the top
+    // (or bottom), along a horizontal lane that clears both boxes, and back in.
+    const goDown = ty >= sy;
+    const halfH = NODE_HEIGHT / 2;
+    const sEdgeY = goDown ? cy1 + halfH + gap : cy1 - halfH - gap;
+    const tEdgeY = goDown ? cy2 + halfH + gap : cy2 - halfH - gap;
+    const laneY = goDown ? Math.max(sEdgeY, tEdgeY) + 40 + Math.abs(syOff)
+                         : Math.min(sEdgeY, tEdgeY) - 40 - Math.abs(syOff);
+    return [
+        { x: cx1, y: sEdgeY },
+        { x: cx1, y: laneY },
+        { x: cx2, y: laneY },
+        { x: cx2, y: tEdgeY }
     ];
 }
 
@@ -2469,8 +2521,8 @@ function renderDiagramWithHover() {
         drawFlowBands();
     } else {
     // Draw substack grouping boxes (recursive — every node with children gets
-    // a dashed boundary around its whole subtree; deeper boxes use tighter
-    // padding so they nest visually inside their parent's box).
+    // a rounded, tinted boundary around its whole subtree; deeper boxes use
+    // tighter padding so they nest visually inside their parent's box).
     const drawGroupBox = (node, depth) => {
         if (!node.substacks || node.substacks.length === 0 || !nodePositions[node.id]) return;
 
@@ -2490,16 +2542,43 @@ function renderDiagramWithHover() {
         const padH = Math.max(60, 120 - depth * 25);
         const padV = Math.max(45, 80 - depth * 15);
         const color = LAYER_TYPES[node.type] || '#6b7280';
+        const bx = minX - padH - NODE_WIDTH / 2;
+        const by = minY - padV - NODE_HEIGHT / 2;
+        const bw = (maxX - minX) + padH * 2 + NODE_WIDTH;
+        const bh = (maxY - minY) + padV * 2 + NODE_HEIGHT;
+        const radius = Math.max(8, 18 - depth * 3);
+
+        ctx.save();
+        // Faint tinted fill so nested groups read as containment regions.
+        ctx.globalAlpha = Math.max(0.04, 0.09 - depth * 0.02);
+        ctx.fillStyle = color;
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, radius); ctx.fill(); }
+        else ctx.fillRect(bx, by, bw, bh);
+        // Dashed rounded border.
+        ctx.globalAlpha = Math.max(0.4, 0.85 - depth * 0.15);
         ctx.strokeStyle = color;
-        ctx.globalAlpha = Math.max(0.35, 0.85 - depth * 0.18);
         ctx.setLineDash([8, 4]);
         ctx.lineWidth = 2;
-        ctx.strokeRect(minX - padH, minY - padV, maxX - minX + padH * 2, maxY - minY + padV * 2);
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, radius); ctx.stroke(); }
+        else ctx.strokeRect(bx, by, bw, bh);
         ctx.setLineDash([]);
+        // Label pill at the top-left so the group name reads against any bg.
+        const labelText = `${node.name}`;
         ctx.font = 'bold 12px sans-serif';
+        const tw = ctx.measureText(labelText).width;
+        const pillW = tw + 16, pillH = 18;
+        const lx = bx + 12, ly = by - pillH / 2;
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = '#0f172a';
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(lx, ly, pillW, pillH, 9); ctx.fill(); }
+        else ctx.fillRect(lx, ly, pillW, pillH);
+        ctx.strokeStyle = color; ctx.lineWidth = 1;
+        if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(lx, ly, pillW, pillH, 9); ctx.stroke(); }
         ctx.fillStyle = color;
-        ctx.fillText(`${node.name} Group`, minX - padH + 10, minY - padV - 5);
-        ctx.globalAlpha = 1;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, lx + 8, ly + pillH / 2);
+        ctx.textBaseline = 'alphabetic';
+        ctx.restore();
 
         // Recurse into children (drawn after, so inner boxes layer on top).
         node.substacks.forEach(child => drawGroupBox(child, depth + 1));
@@ -2507,12 +2586,13 @@ function renderDiagramWithHover() {
     project.layers.forEach(layer => drawGroupBox(layer, 0));
     }
     
-    // FLOW mode: pre-allocate horizontal "ports" on each node so multiple edges
-    // leaving/entering the same node fan out into separate vertical lanes
-    // instead of stacking on one line (fixes the hub-overlap tangle). For each
-    // node we count its outgoing and incoming edges and assign each a slot
-    // spread across the node's width.
-    const useOrtho = (diagramLayoutMode === 'flow');
+    // Both layout modes now route edges orthogonally. Pre-allocate per-node
+    // "ports" so multiple edges leaving/entering the same node fan out into
+    // separate lanes instead of stacking on one line:
+    //   - FLOW (vertical flow): fan out across the node's WIDTH (X ports).
+    //   - STACK (left→right flow): fan out across the node's HEIGHT (Y ports).
+    const useOrtho = (diagramLayoutMode === 'flow' || diagramLayoutMode === 'stack');
+    const orthoVertical = (diagramLayoutMode === 'flow'); // flow = vertical-major
     const outPorts = {}, inPorts = {}, outIdx = {}, inIdx = {};
     if (useOrtho) {
         allLayers.forEach(layer => {
@@ -2525,10 +2605,10 @@ function renderDiagramWithHover() {
             });
         });
     }
-    // Spread n ports across ~70% of the node width, return the offset for slot i.
-    const portOffset = (n, i) => {
+    // Spread n ports across ~70% of the node's relevant face, offset for slot i.
+    const portOffset = (n, i, axisLen) => {
         if (!n || n <= 1) return 0;
-        const span = NODE_WIDTH * 0.7;
+        const span = axisLen * 0.7;
         return -span / 2 + (span * i) / (n - 1);
     };
     
@@ -2564,15 +2644,23 @@ function renderDiagramWithHover() {
                         isSubstack: isSubstackConnection || isTargetSubstack
                     };
 
-                    // Compute an orthogonal route in flow mode, fanning out the
-                    // exit/entry X by this edge's port slot on each node.
+                    // Compute an orthogonal route, fanning the exit/entry point
+                    // by this edge's port slot. Flow fans across width (X) with
+                    // a vertical-major route; Stack fans across height (Y) with
+                    // a horizontal-major route.
                     if (useOrtho) {
                         const sid = String(layer.id), tid = String(actualTargetId);
                         const si = (outIdx[sid] = (outIdx[sid] || 0)); outIdx[sid]++;
                         const ti = (inIdx[tid] = (inIdx[tid] || 0)); inIdx[tid]++;
-                        const sOff = portOffset(outPorts[sid], si);
-                        const tOff = portOffset(inPorts[tid], ti);
-                        connObj.route = orthogonalRoute(x1, y1, x2, y2, sOff, tOff);
+                        if (orthoVertical) {
+                            const sOff = portOffset(outPorts[sid], si, NODE_WIDTH);
+                            const tOff = portOffset(inPorts[tid], ti, NODE_WIDTH);
+                            connObj.route = orthogonalRoute(x1, y1, x2, y2, sOff, tOff);
+                        } else {
+                            const sOff = portOffset(outPorts[sid], si, NODE_HEIGHT);
+                            const tOff = portOffset(inPorts[tid], ti, NODE_HEIGHT);
+                            connObj.route = orthogonalRouteH(x1, y1, x2, y2, sOff, tOff);
+                        }
                         // Store polyline for hit-testing (use the route points).
                         connObj.points = connObj.route;
                     }
@@ -2613,21 +2701,35 @@ function renderDiagramWithHover() {
         }
     });
     
-    // Draw parent-to-substack containment lines (recursive — every node to its
+    // Draw parent-to-substack containment links (recursive — every node to its
     // direct children, at any depth). Skipped in flow mode (nodes are flat).
+    // In stack mode children sit to the right of their parent, so route these
+    // as soft orthogonal elbows from the parent's right face to the child's
+    // left face — subtle dotted so they read as "contains", distinct from the
+    // solid directional flow edges.
     const drawContainment = (node) => {
         if (diagramLayoutMode === 'flow') return;
         if (!node.substacks || node.substacks.length === 0 || !nodePositions[node.id]) return;
+        const pp = nodePositions[node.id];
         node.substacks.forEach(child => {
-            if (nodePositions[child.id]) {
+            const cp = nodePositions[child.id];
+            if (cp) {
+                ctx.save();
                 ctx.strokeStyle = LAYER_TYPES[node.type] || '#6b7280';
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([3, 3]);
-                ctx.beginPath();
-                ctx.moveTo(nodePositions[node.id].x, nodePositions[node.id].y);
-                ctx.lineTo(nodePositions[child.id].x, nodePositions[child.id].y);
-                ctx.stroke();
+                ctx.globalAlpha = 0.45;
+                ctx.lineWidth = 1.25;
+                ctx.setLineDash([2, 4]);
+                const sx = pp.x + NODE_WIDTH / 2;
+                const ex = cp.x - NODE_WIDTH / 2;
+                const midX = (sx + ex) / 2;
+                strokeRoundedPolyline([
+                    { x: sx, y: pp.y },
+                    { x: midX, y: pp.y },
+                    { x: midX, y: cp.y },
+                    { x: ex, y: cp.y }
+                ], 6);
                 ctx.setLineDash([]);
+                ctx.restore();
             }
             drawContainment(child);
         });
