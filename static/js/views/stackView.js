@@ -6,6 +6,10 @@
 function renderLayers() {
     const container = document.getElementById('stack-container');
     container.innerHTML = '';
+    // Suppress card transitions during initial placement so cards don't
+    // animate from the origin pile (the ghost-artifact flash). selectLayer
+    // clears this once positions are applied.
+    container.classList.add('positioning');
     
     const layers = inSubstack && project.layers[selectedLayerIndex].substacks 
         ? project.layers[selectedLayerIndex].substacks 
@@ -108,7 +112,7 @@ function renderLayers() {
                 
                 const layerName = contrib.source || 'Unknown';
                 const unit = contrib.unit || '';
-                bucketTooltip += `<div style="margin-bottom: 4px; color: #cbd5e1; font-size: 11px;">• ${layerName}: ${symbol}${contrib.amount} ${unit}</div>`;
+                bucketTooltip += `<div style="margin-bottom: 4px; color: #cbd5e1; font-size: 11px;">• ${layerName}: ${symbol}${formatCostAmount(contrib.amount)} ${unit}</div>`;
             });
             
             // Find the bucket span and attach tooltip using the variable-specific ID
@@ -155,8 +159,7 @@ function renderLayers() {
         parentCard.style.zIndex = '1';
         
         const parentLabel = document.createElement('div');
-        parentLabel.className = 'layer-label';
-        parentLabel.style.left = '250px';
+        parentLabel.className = 'layer-label parent-layer-label';
         parentLabel.style.opacity = '1';
         parentLabel.innerHTML = `
             <div class="label-name" style="font-size: 18px;">${escapeHtml(parentLayer.name)}</div>
@@ -203,8 +206,8 @@ function renderLayers() {
             <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 3px; ${future ? 'background: rgba(245,158,11,0.2); color: #f59e0b;' : 'background: rgba(148,163,184,0.2); color: #94a3b8;'}">${escapeHtml(layer.status)}</span>
         ` : '';
         label.innerHTML = `
-            <div class="label-name" style="max-width: 300px; word-wrap: break-word; white-space: normal; line-height: 1.3;">${displayName}</div>
-            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+            <div class="label-name">${displayName}</div>
+            <div class="label-meta">
                 <div class="label-type">${escapeHtml(layer.type)}</div>
                 ${statusBadge}
                 ${substackPreview}
@@ -213,30 +216,20 @@ function renderLayers() {
         
         card.appendChild(label);
         
-        // Create cost badge as a separate element with pointer-events: auto
+        // Cost badge lives inside the label flow (below name/type) so it can
+        // never overlap a wrapped layer name. It was previously absolutely
+        // positioned at a fixed offset, which collided with long names.
         const costBadge = document.createElement('span');
         costBadge.id = `cost-badge-${layer.id}`;
         
-        // Only enable pointer-events and cursor for selected badge
         const pointerEvents = isSelected ? 'auto' : 'none';
         const cursor = isSelected ? 'help' : 'default';
         
+        costBadge.className = 'cost-badge';
         costBadge.style.cssText = `
-            position: absolute;
-            left: 250px;
-            top: 85px;
-            font-size: 11px;
-            background: rgba(16, 185, 129, 0.2);
-            color: #10b981;
-            padding: 4px 6px;
-            border-radius: 3px;
             pointer-events: ${pointerEvents};
             cursor: ${cursor};
-            display: inline-block;
-            line-height: 1.5;
-            white-space: nowrap;
             opacity: ${isSelected ? '1' : '0'};
-            transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         `;
         // Replace pipes with line breaks for clean display
         const costText = formatCostBadge(layer);
@@ -271,11 +264,11 @@ function renderLayers() {
                     if (layer.costModel.fixedCost > 0) {
                         const symbol = layer.costModel.currency === 'USD' ? '$' : layer.costModel.currency === 'EUR' ? '€' : layer.costModel.currency === 'GBP' ? '£' : layer.costModel.currency;
                         const period = layer.costModel.period === 'month' ? '/mo' : layer.costModel.period === 'year' ? '/yr' : `/${layer.costModel.period}`;
-                        tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Fixed: ${symbol}${layer.costModel.fixedCost}${period}</div>`;
+                        tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Fixed: ${symbol}${formatCostAmount(layer.costModel.fixedCost)}${period}</div>`;
                     }
                     if (layer.costModel.variableCost > 0) {
                         const symbol = layer.costModel.currency === 'USD' ? '$' : layer.costModel.currency === 'EUR' ? '€' : layer.costModel.currency === 'GBP' ? '£' : layer.costModel.currency;
-                        tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Variable: ${symbol}${layer.costModel.variableCost} ${layer.costModel.variableUnit}</div>`;
+                        tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Variable: ${symbol}${formatCostAmount(layer.costModel.variableCost)} ${layer.costModel.variableUnit}</div>`;
                     }
                     tooltipContent += '</div>';
                 }
@@ -287,11 +280,11 @@ function renderLayers() {
                         if (substack.costModel.fixedCost > 0) {
                             const symbol = substack.costModel.currency === 'USD' ? '$' : substack.costModel.currency === 'EUR' ? '€' : substack.costModel.currency === 'GBP' ? '£' : substack.costModel.currency;
                             const period = substack.costModel.period === 'month' ? '/mo' : substack.costModel.period === 'year' ? '/yr' : `/${substack.costModel.period}`;
-                            tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Fixed: ${symbol}${substack.costModel.fixedCost}${period}</div>`;
+                            tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Fixed: ${symbol}${formatCostAmount(substack.costModel.fixedCost)}${period}</div>`;
                         }
                         if (substack.costModel.variableCost > 0) {
                             const symbol = substack.costModel.currency === 'USD' ? '$' : substack.costModel.currency === 'EUR' ? '€' : substack.costModel.currency === 'GBP' ? '£' : substack.costModel.currency;
-                            tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Variable: ${symbol}${substack.costModel.variableCost} ${substack.costModel.variableUnit}</div>`;
+                            tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Variable: ${symbol}${formatCostAmount(substack.costModel.variableCost)} ${substack.costModel.variableUnit}</div>`;
                         }
                         tooltipContent += '</div>';
                     }
@@ -304,7 +297,7 @@ function renderLayers() {
             }
         }
         
-        card.appendChild(costBadge);
+        label.appendChild(costBadge);
         card.addEventListener('click', () => selectLayer(index));
         container.appendChild(card);
     });

@@ -212,6 +212,13 @@ function toggleView(view) {
             document.getElementById('stack-view').style.display = 'flex';
             detailsPanel.style.display = 'flex';
             panelToggle.style.display = 'flex';
+            // Re-run the carousel positioning now that the view is visible and
+            // has a real height. Without this, cards kept stale/zero-height
+            // transforms and showed a ghost pile until the first interaction.
+            requestAnimationFrame(() => {
+                const idx = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
+                selectLayer(idx, true);
+            });
             break;
         case 'diagram':
             document.getElementById('diagram-view').style.display = 'flex';
@@ -342,6 +349,19 @@ function groupCostsByPeriod(components) {
     });
 }
 
+/**
+ * Format a cost amount as a plain decimal string, never exponential notation
+ * (JS stringifies 0.0000003 as "3e-7"). Trims trailing zeros.
+ */
+function formatCostAmount(amount) {
+    const n = Number(amount) || 0;
+    if (n === 0) return '0';
+    // Enough precision for tiny per-unit costs without scientific notation.
+    let s = n.toFixed(12);
+    if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+}
+
 function formatCostComponent(component) {
     const currency = component.currency || 'USD';
     const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : currency;
@@ -355,10 +375,10 @@ function formatCostComponent(component) {
     else periodLabel = `/${component.period}`;
     
     if (component.type === 'variable' && component.unit) {
-        return `${symbol}${component.amount} ${component.unit}`;
+        return `${symbol}${formatCostAmount(component.amount)} ${component.unit}`;
     }
     
-    return `${symbol}${component.amount}${periodLabel}`;
+    return `${symbol}${formatCostAmount(component.amount)}${periodLabel}`;
 }
 
 function aggregateStackCosts(layers, opts) {
@@ -494,7 +514,7 @@ function formatStackCostBanner() {
             else if (comp.period === 'year') periodLabel = '/yr';
             else if (comp.period) periodLabel = `/${comp.period}`;
             
-            return `${symbol}${comp.amount}${periodLabel}`;
+            return `${symbol}${formatCostAmount(comp.amount)}${periodLabel}`;
         }).join(' + ');
         
         bannerText += `<strong>Fixed:</strong> ${fixedFormatted}`;
@@ -511,10 +531,10 @@ function formatStackCostBanner() {
                 const bucketName = comp.unit.charAt(0).toUpperCase() + comp.unit.slice(1);
                 const bucketId = `cost-bucket-var-${idx}`;
                 // Use variable-specific index for bucket ID
-                return `<span id="${bucketId}" style="cursor: help; text-decoration: underline dotted; text-decoration-color: rgba(148, 163, 184, 0.5);">${symbol}${comp.amount} ${bucketName}</span>`;
+                return `<span id="${bucketId}" style="cursor: help; text-decoration: underline dotted; text-decoration-color: rgba(148, 163, 184, 0.5);">${symbol}${formatCostAmount(comp.amount)} ${bucketName}</span>`;
             }
             
-            return `${symbol}${comp.amount}`;
+            return `${symbol}${formatCostAmount(comp.amount)}`;
         }).join(' + ');
         
         if (fixedCosts.length > 0) {
@@ -717,6 +737,13 @@ function selectLayer(index, skipDetailsUpdate = false) {
             ? project.layers[selectedLayerIndex].substacks[selectedSubstackIndex]
             : project.layers[selectedLayerIndex];
         renderLayerDetails(currentLayer);
+    }
+
+    // Positions are applied; re-enable card transitions (and reveal) on the
+    // next frame so the initial placement painted instantly (no ghost pile).
+    const sc = document.getElementById('stack-container');
+    if (sc && sc.classList.contains('positioning')) {
+        requestAnimationFrame(() => sc.classList.remove('positioning'));
     }
 }
 
