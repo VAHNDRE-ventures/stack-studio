@@ -112,8 +112,9 @@ the migration rules.
   has zoom, Fit, Auto-arrange (↻), and Export (⬇) controls. A **Snap to grid**
   toggle (top-left, with a 5–20px size picker) aligns dragged nodes to a grid
   and shows it while on. Connection lines are labeled with their type; hover a
-  node to highlight its connections. When an action is selected, a dropdown
-  (top-left) highlights its path across the diagram.
+  node for a tooltip with its name, type, description and connections. When an
+  action is selected, a dropdown (top-left) highlights its path across the
+  diagram.
   - **Multi-select & group drag**: Ctrl/Cmd+click toggles nodes into a
     selection; dragging any selected node moves the whole set together.
     Alt+drag a node grabs its entire subtree (node + all descendants) as one
@@ -122,10 +123,13 @@ the migration rules.
   - **Auto-arrange** (↻) relays out the stack and then pushes overlapping
     top-level group boxes apart so the dashed group borders never intersect.
     It's a single undo step and doesn't disturb the layout unless you press it.
-  - **Export** (⬇) saves an ultra-high-resolution PNG. The image aspect ratio
-    is exactly the bounding box of every element (nodes + group boxes) plus
-    20px padding — no viewport crop or whitespace. Renders at 4× and caps the
-    longest side at 12000px to stay within browser limits.
+  - **Export** (⬇) saves an ultra-high-resolution PNG **plus a companion
+    Markdown legend** (`<name>_legend.md`) documenting every node — name, type,
+    status, technology, description, and outgoing connections — grouped by
+    phase. The image aspect ratio is exactly the bounding box of every element
+    (nodes + group boxes) plus 20px padding — no viewport crop or whitespace.
+    Renders at 4× and caps the longest side at 12000px to stay within browser
+    limits.
   - **Layout modes** (the **Flow / Stack** toggle): StackStudio carries two
     orthogonal kinds of meaning, and the diagram can lay out either way:
     - **Stack** (composition) — the default. Substacks nest to the right of
