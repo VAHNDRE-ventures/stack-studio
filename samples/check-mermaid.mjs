@@ -74,6 +74,10 @@ log(!!gw && gw.type === 'API', `{API Gateway} typed API (got ${gw?gw.type:'-'})`
 log(!!auth && auth.type === 'Backend', `(Auth Service) typed Backend (got ${auth?auth.type:'-'})`);
 log(!!user && user.type === 'Actor', `((Customer)) typed Actor (got ${user?user.type:'-'})`);
 
+// <br/> splits into a short name + description (not one giant overflowing name).
+log(!!web && web.name === 'Web App', `name is first <br/> segment ("${web?web.name:'-'}")`);
+log(!!web && web.description === 'React SPA', `rest of label → description ("${web?web.description:'-'}")`);
+
 // Migrate + structural integrity.
 project = migrateProject(project);
 // data.js exposes getAllLayersFromProject(project); utils.js exposes getConnections.

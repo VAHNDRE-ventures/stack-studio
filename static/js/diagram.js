@@ -1294,16 +1294,24 @@ function drawNode(layer, x, y, isSelected) {
     // Icon
     ctx.font = '24px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(style.icon, x, y - 30);
+    ctx.fillText(style.icon, x, y - 38);
     
-    // Text
+    // Name — wrapped to fit the node width (long Mermaid-derived names used to
+    // overflow into neighbors). Up to 3 lines, ellipsized if still too long.
     ctx.fillStyle = '#e2e8f0';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.fillText(layer.name, x, y);
-    
+    ctx.font = 'bold 13px sans-serif';
+    const nameLines = wrapText(layer.name || '', width - 24, 3);
+    const lineH = 15;
+    // Vertically center the name block around y (slightly above to leave room
+    // for the type/tech lines below).
+    let ny = y - ((nameLines.length - 1) * lineH) / 2 - 4;
+    nameLines.forEach(line => { ctx.fillText(line, x, ny); ny += lineH; });
+
+    // Type sits just below the name block.
     ctx.font = '11px sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText(layer.type, x, y + 18);
+    const typeY = y + ((nameLines.length - 1) * lineH) / 2 + 14;
+    ctx.fillText(layer.type, x, typeY);
 
     // Status pill for non-active states so Planned/Deprecated reads at a glance.
     if (layer.status && layer.status !== 'Active') {
@@ -1321,10 +1329,56 @@ function drawNode(layer, x, y, isSelected) {
     if (layer.technology) {
         ctx.font = '10px sans-serif';
         ctx.fillStyle = '#64748b';
-        ctx.fillText(layer.technology.substring(0, 30), x, y + 35);
+        const techLine = wrapText(layer.technology, width - 24, 1)[0] || '';
+        ctx.fillText(techLine, x, typeY + 16);
     }
 
     if (future) ctx.globalAlpha = 1;
+}
+
+/**
+ * Greedy word-wrap for canvas text. Returns up to `maxLines` lines that each
+ * fit within `maxWidth` (using the current ctx.font). The last line is
+ * ellipsized if the text doesn't fit. Falls back to hard-splitting a single
+ * word that's too long on its own.
+ */
+function wrapText(text, maxWidth, maxLines) {
+    const t = String(text || '').trim();
+    if (!t) return [''];
+    const words = t.split(/\s+/);
+    const lines = [];
+    let cur = '';
+    const fits = s => ctx.measureText(s).width <= maxWidth;
+
+    for (let i = 0; i < words.length; i++) {
+        let w = words[i];
+        const trial = cur ? cur + ' ' + w : w;
+        if (fits(trial)) { cur = trial; continue; }
+        if (cur) { lines.push(cur); cur = ''; }
+        // The single word itself may exceed the width — hard-split it.
+        if (!fits(w)) {
+            let chunk = '';
+            for (const ch of w) {
+                if (fits(chunk + ch)) chunk += ch;
+                else { if (chunk) lines.push(chunk); chunk = ch; if (lines.length >= maxLines) break; }
+            }
+            cur = chunk;
+        } else {
+            cur = w;
+        }
+        if (lines.length >= maxLines) break;
+    }
+    if (cur && lines.length < maxLines) lines.push(cur);
+
+    // Ellipsize if we ran out of lines with text remaining.
+    if (lines.length > maxLines) lines.length = maxLines;
+    const consumed = lines.join(' ').split(/\s+/).length;
+    if (consumed < words.length && lines.length) {
+        let last = lines[maxLines - 1];
+        while (last.length && !fits(last + '…')) last = last.slice(0, -1);
+        lines[maxLines - 1] = last + '…';
+    }
+    return lines;
 }
 
 function drawRect(x, y, width, height, isSelected, color) {

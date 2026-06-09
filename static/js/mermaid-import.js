@@ -22,24 +22,50 @@
 (function (global) {
     'use strict';
 
-    // Decode the handful of HTML entities Mermaid labels commonly carry, and
-    // turn <br/> into spaces so names stay single-line in the UI.
-    function cleanLabel(raw) {
-        if (raw == null) return '';
-        let s = String(raw).trim();
-        // Strip surrounding quotes Mermaid allows inside shape brackets.
-        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
-            s = s.slice(1, -1);
-        }
-        s = s.replace(/<br\s*\/?>/gi, ' ');
+    // Decode the handful of HTML entities Mermaid labels commonly carry. Does
+    // NOT collapse <br/> — that's handled by callers that decide whether to
+    // keep the break structure (name vs description) or flatten.
+    function decodeEntities(s) {
         const entities = {
             '&larr;': '←', '&rarr;': '→', '&uarr;': '↑', '&darr;': '↓',
             '&times;': '×', '&amp;': '&', '&lt;': '<', '&gt;': '>',
             '&quot;': '"', '&#39;': "'", '&nbsp;': ' '
         };
-        s = s.replace(/&[a-z#0-9]+;/gi, m => entities[m.toLowerCase()] || m);
-        // Collapse runs of whitespace introduced by <br/> removal.
+        return String(s).replace(/&[a-z#0-9]+;/gi, m => entities[m.toLowerCase()] || m);
+    }
+
+    // Strip surrounding quotes Mermaid allows inside shape brackets.
+    function stripQuotes(s) {
+        let t = String(s).trim();
+        if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
+            t = t.slice(1, -1);
+        }
+        return t;
+    }
+
+    // Flatten a label to a single line (decode entities, drop <br/>, collapse
+    // whitespace). Used for edge labels and anywhere a one-liner is wanted.
+    function cleanLabel(raw) {
+        if (raw == null) return '';
+        let s = stripQuotes(raw);
+        s = s.replace(/<br\s*\/?>/gi, ' ');
+        s = decodeEntities(s);
         return s.replace(/\s+/g, ' ').trim();
+    }
+
+    // Split a label on <br/> into trimmed segments, preserving the break
+    // structure. The first segment is the node's name; the rest become its
+    // description (so a Mermaid label like "Cache<br/>session store<br/>8h TTL"
+    // yields name "Cache" + a multi-line description rather than one giant name
+    // that overflows the node).
+    function splitLabel(raw) {
+        if (raw == null) return { name: '', description: '' };
+        const s = stripQuotes(raw);
+        const parts = s.split(/<br\s*\/?>/gi)
+            .map(p => decodeEntities(p).replace(/\s+/g, ' ').trim())
+            .filter(p => p.length > 0);
+        if (parts.length === 0) return { name: '', description: '' };
+        return { name: parts[0], description: parts.slice(1).join('\n') };
     }
 
     // Shape detection: returns { type, label } given the text following a node
@@ -61,7 +87,10 @@
         const t = body.trim();
         for (const s of SHAPE_TESTS) {
             const m = t.match(s.re);
-            if (m) return { type: s.type, label: cleanLabel(m[1]) };
+            if (m) {
+                const split = splitLabel(m[1]);
+                return { type: s.type, label: split.name, description: split.description };
+            }
         }
         return null; // not a shaped declaration (bare id reference)
     }
@@ -187,6 +216,7 @@
                     id,
                     name: parsed ? (parsed.label || id) : id,
                     type: parsed ? parsed.type : 'Other',
+                    description: parsed ? (parsed.description || '') : '',
                     container: container !== undefined ? container : currentContainer()
                 });
             } else if (body) {
@@ -196,6 +226,7 @@
                     const n = nodes.get(id);
                     if (n.name === id && parsed.label) n.name = parsed.label;
                     if (n.type === 'Other') n.type = parsed.type;
+                    if (!n.description && parsed.description) n.description = parsed.description;
                 }
             }
             return nodes.get(id);
@@ -297,7 +328,7 @@
                 type: n.type,
                 status: 'Active',
                 technology: '',
-                description: '',
+                description: n.description || '',
                 connections: [],
                 substacks: []
             };
