@@ -352,6 +352,147 @@ connected by orthogonal top→bottom edges.
 
 ---
 
+## Stack View
+
+The **Stack** layout is the default mode and the inverse of Flow: where Flow is
+about *process order* (`group` + `groupOrder` + edges), Stack is about
+**composition** — what a node *contains*. It is driven by one structural field:
+`Layer.substacks`. A node owns its children; the diagram nests them, the
+carousel drills into them, and costs roll up through them.
+
+This section documents **exactly** what Stack consumes. Unlike Flow, Stack uses
+almost every node field — so this is the canonical reference for an
+architecture (rather than a pipeline) document.
+
+### The field that drives Stack
+
+```jsonc
+{
+  "id": 2,
+  "name": "Cloudflare",
+  "type": "Core",
+  "substacks": [                      // Layer[] — children this node contains
+    { "id": "2_1", "name": "Pages",   "type": "Frontend", "status": "Active",
+      "connections": [], "substacks": [] },
+    { "id": "2_2", "name": "Workers", "type": "API", "status": "Active",
+      "connections": [ { "targetId": 3, "type": "Database" } ],
+      "substacks": [
+        { "id": "2_2_1", "name": "Auth Handler", "type": "Backend",
+          "status": "Active", "connections": [], "substacks": [] }
+      ] }
+  ]
+}
+```
+
+#### `Layer.substacks` (Layer[], optional)
+
+- An array of **child nodes, each the exact same shape as a top-level Layer**
+  (see [Layer](#layer-and-substack)). This is the only nesting mechanism;
+  there is no separate "substack" type.
+- **Recursive to any depth.** A substack may have its own `substacks`, which
+  may have theirs, and so on. The diagram draws each level to the right of its
+  parent inside a dashed group box; the details panel drills in with a
+  breadcrumb showing the full ancestry.
+- **Order is preserved and meaningful.** The carousel and details list render
+  substacks in array order; "Move Up / Move Down" reorders this array.
+- Absent or `[]` means a leaf node (no children).
+- A child's `id` should be **unique across the entire project**, not just
+  within its parent. The convention (and what the UI generates) is
+  `"<parentId>_<n>"` — e.g. parent `2` → `"2_1"`, `"2_2"`; nested deeper →
+  `"2_2_1"`. Connections reference any node by this global `id`.
+
+### Per-node fields Stack renders
+
+Every field below is read for **each node at every depth** (top-level layers
+and substacks alike). None is Flow-specific.
+
+| Field | Where it shows in Stack | Required? |
+|-------|-------------------------|-----------|
+| `id` | Identity + connection targeting + cost-badge element id | **Yes** — unique across the project |
+| `name` | Carousel card, details panel, breadcrumb, substack list | **Yes** |
+| `type` | Card text + the node's **color** (see [Layer types](#layer-types)) | **Yes** |
+| `status` | Status pill on the card when not `Active`; dashed/muted for future statuses | **Yes** (`Active` if unsure) |
+| `technology` | Properties tab (free text) | optional |
+| `description` | Properties tab + node hover tooltip | optional |
+| `responsibilities` | Properties tab | optional |
+| `connections` | Connections tab + drawn as edges in the diagram (see [Connection](#connection)) | optional (`[]` if none) |
+| `costModel` | Cost badge on the card, the stack cost banner, and the Cost dashboard (see [CostModel](#costmodel)) | optional (absent = free) |
+| `substacks` | Nested cards / group boxes / drill-in (this section) | optional (`[]` = leaf) |
+
+### Cost rollup through composition
+
+Stack's cost model is **hierarchical** and this is the main behavioral
+difference from a flat list:
+
+- A node's displayed cost (`getLayerCostComponents`) is the sum of **its own
+  `costModel` plus every descendant's `costModel`, recursively** through
+  `substacks`. A parent with no `costModel` of its own still shows a badge if
+  its children cost money.
+- The stack cost **banner** aggregates every top-level layer's full subtree.
+- `Actor` / `External` typed nodes and `Planned` / `Proposed` status nodes are
+  **excluded** from the current-state rollup (see [Layer types](#layer-types)
+  and [Layer statuses](#layer-statuses)). This exclusion applies at every depth.
+
+So to model "a service that costs $5/mo and contains three free sub-modules,"
+put the `costModel` on the parent and leave the children's absent — the parent
+badge reads $5/mo and the children read Free.
+
+### Fields Stack reads but does not yet surface
+
+These are part of the schema and preserved on save, but the **Stack UI does not
+currently render or edit them**: `dependencies` (reserved for a future
+dependency view), `visible` (reserved show/hide), `locked` (reserved
+edit-lock). They are safe to include — they round-trip untouched — but have no
+visible effect in Stack today.
+
+### Stack vs. Flow at a glance
+
+| Concern | Stack (composition) | Flow (process) |
+|---------|---------------------|----------------|
+| Structural field | `substacks` (nesting) | `group` + `groupOrder` (lanes) |
+| Question answered | "what is *part of* what" | "what *flows to* what" |
+| Node placement | parent → children to the right, nested boxes | ranked top→bottom by `connections` |
+| `group` / `groupOrder` | ignored | required for lanes |
+| `substacks` | the whole point | should be empty (flat) |
+| Costs | roll up through `substacks` | identical cost model, not used for layout |
+| Best for | an architecture you own (services + modules) | a pipeline data passes through (stages) |
+
+A document can technically carry both `substacks` and `group`, but in practice
+a project is authored for one view: nest with `substacks` for an architecture,
+or stay flat with `group` + `groupOrder` for a flow. Mixing produces a valid
+but confusing result (e.g. a Flow lane containing a node that also owns
+substacks the Flow view won't show).
+
+### Minimal valid Stack document
+
+```jsonc
+{
+  "name": "Acme Platform",
+  "avgTransactionValue": 50,
+  "layers": [
+    { "id": 1, "name": "Web App", "type": "Frontend", "status": "Active",
+      "technology": "React",
+      "connections": [ { "targetId": 2, "type": "HTTP" } ],
+      "substacks": [] },
+    { "id": 2, "name": "API", "type": "Core", "status": "Active",
+      "connections": [ { "targetId": 3, "type": "Database", "label": "queries" } ],
+      "costModel": { "currency": "USD", "period": "month", "fixedCost": 5,
+                     "variableCost": 0, "variableUnit": "per-request" },
+      "substacks": [
+        { "id": "2_1", "name": "Auth Service", "type": "Backend",
+          "status": "Active", "connections": [], "substacks": [] }
+      ] },
+    { "id": 3, "name": "Postgres", "type": "Database", "status": "Active",
+      "connections": [], "substacks": [] }
+  ]
+}
+```
+
+This renders three top-level cards; the API card owns one nested substack
+(Auth Service) and shows a $5/mo badge that rolls up its subtree.
+
+---
+
 ## Migrations
 `migrateProject()` upgrades older documents on load. It is idempotent and
 preserves unknown-but-known fields:
