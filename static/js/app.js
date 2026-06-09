@@ -1597,6 +1597,48 @@ function importProject() {
     input.click();
 }
 
+/**
+ * Import a Mermaid flowchart (.mmd / .mermaid / .txt) and convert it to a
+ * StackStudio project via MermaidImport.mermaidToProject (see
+ * static/js/mermaid-import.js). Subgraphs become top-level layers, their nodes
+ * become substacks, and edges become typed/labeled connections.
+ */
+function importMermaid() {
+    if (typeof MermaidImport === 'undefined' || !MermaidImport.mermaidToProject) {
+        alert('Mermaid importer not loaded.');
+        return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.mmd,.mermaid,.txt,.md';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const name = file.name.replace(/\.(mmd|mermaid|txt|md)$/i, '');
+                let imported = MermaidImport.mermaidToProject(event.target.result, name);
+                imported = migrateProject(imported);
+                project = imported;
+                document.getElementById('project-title').textContent = project.name;
+                saveProject();
+                renderLayers();
+                updateStats();
+                selectLayer(0);
+                // Lay the freshly-imported nodes out and keep groups apart.
+                if (currentView === 'diagram' && typeof autoArrangeDiagram === 'function') {
+                    autoArrangeDiagram();
+                }
+            } catch (error) {
+                alert('Could not import Mermaid: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
 function newProject() {
     if (confirm('Create new project? Unsaved changes will be lost.')) {
         project = {

@@ -125,8 +125,27 @@ the migration rules.
     is exactly the bounding box of every element (nodes + group boxes) plus
     20px padding — no viewport crop or whitespace. Renders at 4× and caps the
     longest side at 12000px to stay within browser limits.
-- **File menu**: New, Open (import JSON), Save (export JSON), and Templates.
-  Projects auto-save to `localStorage`.
+- **File menu**: New, Open (import JSON), **Import Mermaid…** (convert a
+  `flowchart`/`graph` definition — see below), Save (export JSON), and
+  Templates. Projects auto-save to `localStorage`.
+
+### Importing Mermaid
+
+**File → Import Mermaid…** converts a Mermaid `flowchart` / `graph` definition
+into a StackStudio project:
+
+- `subgraph ID["Title"] … end` → a top-level layer; nodes declared inside it
+  become its substacks.
+- bare nodes outside any subgraph → top-level layers.
+- node shape → layer type, best-effort: `[(db)]` → Database, `{gw}` /
+  `{{hex}}` → API, `([stadium])` / `[[subroutine]]` → Core, `((circle))` →
+  Actor, `(rounded)` → Backend, `[rect]` → Other.
+- edges (`-->`, `-- text -->`, `-.->`, `==>`), chains (`A --> B --> C`), and
+  fan-out (`A --> B & C`) → connections. Dotted edges map to **Async**; edge
+  text becomes the connection label. Subgraph-level edges attach at the layer.
+
+The imported diagram is auto-arranged on load. The converter lives in
+`static/js/mermaid-import.js` and is pure/dependency-free.
 
 ### Keyboard & navigation
 
@@ -169,6 +188,7 @@ static/css/style.css    all styling
 static/js/
   utils.js              HTML escaping + canonical connection accessor (loads first)
   data.js               data model, migrations, cost engine, templates
+  mermaid-import.js     Mermaid flowchart → project converter (pure)
   validation.js         project validation
   views/
     stackView.js        renderLayers — the carousel
@@ -201,6 +221,7 @@ node samples/check-snap.mjs      # headless: snap-to-grid toggle, rounding, real
 node samples/check-undo.mjs      # headless: field/drag undo, Ctrl+Z inside inputs
 node samples/check-group-drag.mjs # headless: multi-select, group drag, group-aware arrange
 node samples/check-export.mjs    # headless: hi-res PNG export bounds, aspect, restore
+node samples/check-mermaid.mjs   # pure: Mermaid → project conversion (shapes, edges, fan-out)
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 
@@ -260,6 +281,10 @@ headless test under `samples/`:
   auto-arrange is one undo step, and Ctrl+Z while a form field is focused
   commits the field's edit then runs the app undo (instead of dead-ending in
   the browser's native text-undo).
+- **Mermaid import.** File → Import Mermaid converts a `flowchart`/`graph`
+  definition into a project — subgraphs become layers, their nodes become
+  substacks, node shapes map to types, and edges (incl. chains, fan-out,
+  dotted, and labeled) become typed connections.
 - **Sidebar.** Horizontally resizable (persisted), collapse handle glued to
   the panel edge, responsive width.
 - **Stack view fixes.** No ghost-card flash on entry, word-boundary wrapping
