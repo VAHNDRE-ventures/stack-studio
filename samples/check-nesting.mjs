@@ -43,11 +43,15 @@ setTimeout(async()=>{
     all.forEach(l => getConnections(l).forEach(c => { if(!ids.has(String(c.targetId))) dangling++; }));
     r.dangling = dangling;
 
-    // Diagram places every node:
-    toggleView('diagram'); renderDiagram();
+    // Diagram places every node via the real layout (not lazy fallback):
+    toggleView('diagram');
+    refreshDiagramLayout();
     const positioned = all.filter(l => nodePositions[l.id]);
     r.positioned = positioned.length;
     r.allFinite = positioned.every(l => Number.isFinite(nodePositions[l.id].x));
+    // Each deeper level should sit to the right of its parent.
+    const px = id => nodePositions[id] ? nodePositions[id].x : null;
+    r.depthStepsRight = px(1) < px('1_1') && px('1_1') < px('1_1_1') && px('1_1_1') < px('1_1_1_1');
   }catch(e){r.errors.push('script: '+e.message);}
   r.errors=r.errors.concat(window.__e);
   const o=document.createElement('pre'); o.id='out'; o.textContent=JSON.stringify(r); document.body.appendChild(o);
@@ -69,5 +73,6 @@ log(r.pathDepth===4, `findNodePath returns full ancestry (${r.pathDepth}: ${r.pa
 log(r.fixedTotal===185, `cost rolls up all levels (100+50+25+10=185, got ${r.fixedTotal})`);
 log(r.dangling===0, `connections to deep nodes resolve (dangling=${r.dangling})`);
 log(r.positioned===4 && r.allFinite, `diagram places all 4 nodes with finite coords (${r.positioned})`);
+log(r.depthStepsRight, 'each deeper level is laid out to the right of its parent');
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);

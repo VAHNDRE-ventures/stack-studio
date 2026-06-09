@@ -178,6 +178,13 @@ function handleCanvasWheel(e) {
 
 function recalculateLayout() {
     nodePositions = {};
+
+    // Count leaves under a node (min 1) — used to size vertical footprints so
+    // deep subtrees don't overlap.
+    function countLeaves(node) {
+        if (!node.substacks || node.substacks.length === 0) return 1;
+        return node.substacks.reduce((sum, c) => sum + countLeaves(c), 0);
+    }
     
     // Build dependency graph and calculate levels (left to right flow)
     const levels = calculateLayerLevels();
@@ -257,9 +264,11 @@ function recalculateLayout() {
         let currentY = baseY;
         
         layersInLevel.forEach((layer, idx) => {
-            const hasSubstacks = layer.substacks && layer.substacks.length > 0;
-            const substackCount = hasSubstacks ? layer.substacks.length : 0;
-            const layerHeight = hasSubstacks ? substackCount * 180 : 120;
+            // Reserve vertical space based on the layer's total leaf count
+            // (full subtree), not just direct children, so deep trees don't
+            // collide with the next top-level layer.
+            const totalLeaves = countLeaves(layer);
+            const layerHeight = totalLeaves > 1 ? totalLeaves * 160 : 120;
             
             const basePosition = {
                 x: baseX + (parseInt(level) * levelSpacing),
@@ -283,20 +292,30 @@ function recalculateLayout() {
         });
     });
     
-    // Position substacks relative to parents
-    project.layers.forEach(layer => {
-        if (layer.substacks && layer.substacks.length > 0 && nodePositions[layer.id]) {
-            const substackCount = layer.substacks.length;
-            const substackSpacing = 180;
-            
-            layer.substacks.forEach((sub, substackIndex) => {
-                nodePositions[sub.id] = {
-                    x: nodePositions[layer.id].x + 400,
-                    y: nodePositions[layer.id].y + (substackIndex * substackSpacing) - ((substackCount - 1) * substackSpacing / 2)
-                };
-            });
-        }
-    });
+    // Position substacks relative to parents, recursively to any depth. Each
+    // level steps further right; siblings are stacked vertically and spaced by
+    // their own subtree height so deep trees don't overlap.
+    const childXStep = 360;
+    const leafSpacing = 150;
+
+    function placeChildren(node) {
+        if (!node.substacks || node.substacks.length === 0) return;
+        if (!nodePositions[node.id]) return;
+        const px = nodePositions[node.id].x;
+        const py = nodePositions[node.id].y;
+        const totalLeaves = node.substacks.reduce((s, c) => s + countLeaves(c), 0);
+        const totalHeight = (totalLeaves - 1) * leafSpacing;
+        let cursor = py - totalHeight / 2;
+        node.substacks.forEach(child => {
+            const span = (countLeaves(child) - 1) * leafSpacing;
+            const childY = cursor + span / 2;
+            nodePositions[child.id] = { x: px + childXStep, y: childY };
+            cursor += span + leafSpacing;
+            placeChildren(child);
+        });
+    }
+
+    project.layers.forEach(layer => placeChildren(layer));
 
     // Restore any manually-saved positions over the computed defaults so a
     // user's drag arrangement survives view switches and reloads.
@@ -1201,36 +1220,43 @@ function renderDiagramWithHover() {
     
     const allLayers = getAllLayers();
     
-    // Draw substack grouping boxes first
-    project.layers.forEach(layer => {
-        if (layer.substacks && layer.substacks.length > 0 && nodePositions[layer.id]) {
-            const parentPos = nodePositions[layer.id];
-            let minX = parentPos.x, maxX = parentPos.x;
-            let minY = parentPos.y, maxY = parentPos.y;
-            
-            layer.substacks.forEach(sub => {
-                if (nodePositions[sub.id]) {
-                    minX = Math.min(minX, nodePositions[sub.id].x);
-                    maxX = Math.max(maxX, nodePositions[sub.id].x);
-                    minY = Math.min(minY, nodePositions[sub.id].y);
-                    maxY = Math.max(maxY, nodePositions[sub.id].y);
-                }
-            });
-            
-            const paddingVertical = 80;
-            const paddingHorizontal = 120;
-            ctx.strokeStyle = LAYER_TYPES[layer.type] || '#6b7280';
-            ctx.setLineDash([8, 4]);
-            ctx.lineWidth = 2;
-            ctx.strokeRect(minX - paddingHorizontal, minY - paddingVertical, maxX - minX + paddingHorizontal * 2, maxY - minY + paddingVertical * 2);
-            ctx.setLineDash([]);
-            
-            // Group label
-            ctx.fillStyle = LAYER_TYPES[layer.type] || '#6b7280';
-            ctx.font = 'bold 12px sans-serif';
-            ctx.fillText(`${layer.name} Group`, minX - paddingHorizontal + 10, minY - paddingVertical - 5);
-        }
-    });
+    // Draw substack grouping boxes (recursive — every node with children gets
+    // a dashed boundary around its whole subtree; deeper boxes use tighter
+    // padding so they nest visually inside their parent's box).
+    const drawGroupBox = (node, depth) => {
+        if (!node.substacks || node.substacks.length === 0 || !nodePositions[node.id]) return;
+
+        // Bounds over the node and all its descendants.
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        const acc = (n) => {
+            const p = nodePositions[n.id];
+            if (p) {
+                minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+            }
+            if (n.substacks) n.substacks.forEach(acc);
+        };
+        acc(node);
+        if (minX === Infinity) return;
+
+        const padH = Math.max(60, 120 - depth * 25);
+        const padV = Math.max(45, 80 - depth * 15);
+        const color = LAYER_TYPES[node.type] || '#6b7280';
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = Math.max(0.35, 0.85 - depth * 0.18);
+        ctx.setLineDash([8, 4]);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(minX - padH, minY - padV, maxX - minX + padH * 2, maxY - minY + padV * 2);
+        ctx.setLineDash([]);
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillStyle = color;
+        ctx.fillText(`${node.name} Group`, minX - padH + 10, minY - padV - 5);
+        ctx.globalAlpha = 1;
+
+        // Recurse into children (drawn after, so inner boxes layer on top).
+        node.substacks.forEach(child => drawGroupBox(child, depth + 1));
+    };
+    project.layers.forEach(layer => drawGroupBox(layer, 0));
     
     // Draw connections with hover highlighting
     connections = [];
@@ -1299,23 +1325,25 @@ function renderDiagramWithHover() {
         }
     });
     
-    // Draw parent-to-substack connections
-    project.layers.forEach(layer => {
-        if (layer.substacks && layer.substacks.length > 0 && nodePositions[layer.id]) {
-            layer.substacks.forEach(sub => {
-                if (nodePositions[sub.id]) {
-                    ctx.strokeStyle = LAYER_TYPES[layer.type] || '#6b7280';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([3, 3]);
-                    ctx.beginPath();
-                    ctx.moveTo(nodePositions[layer.id].x, nodePositions[layer.id].y);
-                    ctx.lineTo(nodePositions[sub.id].x, nodePositions[sub.id].y);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                }
-            });
-        }
-    });
+    // Draw parent-to-substack containment lines (recursive — every node to its
+    // direct children, at any depth).
+    const drawContainment = (node) => {
+        if (!node.substacks || node.substacks.length === 0 || !nodePositions[node.id]) return;
+        node.substacks.forEach(child => {
+            if (nodePositions[child.id]) {
+                ctx.strokeStyle = LAYER_TYPES[node.type] || '#6b7280';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(nodePositions[node.id].x, nodePositions[node.id].y);
+                ctx.lineTo(nodePositions[child.id].x, nodePositions[child.id].y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            drawContainment(child);
+        });
+    };
+    project.layers.forEach(layer => drawContainment(layer));
     
     // Draw nodes
     const actionPath = (typeof highlightedActionPath !== 'undefined') ? highlightedActionPath : null;
