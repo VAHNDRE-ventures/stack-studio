@@ -742,6 +742,9 @@ function selectLayer(index, skipDetailsUpdate = false) {
         }
         card.style.pointerEvents = a > VISIBLE ? 'none' : 'auto';
     });
+
+    // Keep the right-rail position dots in sync with the selected index.
+    if (typeof updateStackDots === 'function') updateStackDots(index);
     
     if (!skipDetailsUpdate) {
         const currentLayer = inSubstack 
@@ -763,17 +766,52 @@ function enterSubstack() {
         project.layers[selectedLayerIndex].substacks.length === 0) {
         return;
     }
-    inSubstack = true;
-    selectedSubstackIndex = 0;
-    renderLayers();
-    selectLayer(0);
+    depthTransition('in', () => {
+        inSubstack = true;
+        selectedSubstackIndex = 0;
+        renderLayers();
+        selectLayer(0);
+    });
 }
 
 function exitSubstack() {
     if (!inSubstack) return;
-    inSubstack = false;
-    renderLayers();
-    selectLayer(selectedLayerIndex);
+    depthTransition('out', () => {
+        inSubstack = false;
+        renderLayers();
+        selectLayer(selectedLayerIndex);
+    });
+}
+
+/**
+ * Animate a depth change (enter/exit substacks). The current lane slides + fades
+ * out in the depth direction, then `swap()` rebuilds the new lane, which slides
+ * in from the opposite side. 'in' = descending (push left), 'out' = ascending
+ * (push right). Respects reduced motion and only animates in the Stack view.
+ */
+let depthAnimating = false;
+function depthTransition(dir, swap) {
+    const sc = document.getElementById('stack-container');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!sc || currentView !== 'stack' || reduce || depthAnimating) {
+        swap();
+        return;
+    }
+    depthAnimating = true;
+    const outClass = dir === 'in' ? 'depth-leaving-in' : 'depth-leaving-out';
+    const inClass  = dir === 'in' ? 'depth-entering-in' : 'depth-entering-out';
+
+    sc.classList.add(outClass);
+    setTimeout(() => {
+        sc.classList.remove(outClass);
+        swap();                       // rebuild lane (renderLayers + selectLayer)
+        sc.classList.add(inClass);
+        requestAnimationFrame(() => {
+            // next frame: removing the class animates from the offset to rest
+            requestAnimationFrame(() => sc.classList.remove(inClass));
+        });
+        setTimeout(() => { depthAnimating = false; }, 280);
+    }, 170);
 }
 
 

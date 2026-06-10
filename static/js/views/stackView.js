@@ -5,7 +5,9 @@
 
 function renderLayers() {
     const container = document.getElementById('stack-container');
-    container.innerHTML = '';
+    // Clear only the dynamic children (cards + cost banner), preserving the
+    // breadcrumb / dots overlays which live permanently in the container.
+    container.querySelectorAll('.layer-card, #stack-cost-banner').forEach(el => el.remove());
     // Suppress card transitions during initial placement so cards don't
     // animate from the origin pile (the ghost-artifact flash). selectLayer
     // clears this once positions are applied.
@@ -215,4 +217,60 @@ function renderLayers() {
 
         container.appendChild(card);
     });
+
+    renderStackChrome();
+}
+
+/**
+ * Render the Stack-view chrome that lives over the carousel:
+ *  - breadcrumb (top-left) showing the depth path when inside substacks
+ *  - position dots (right rail) reflecting the current lane, panel-aware via CSS
+ * Both are permanent overlay nodes in #stack-container; we just repopulate them.
+ */
+function renderStackChrome() {
+    const bc = document.getElementById('stack-breadcrumb');
+    const dotsEl = document.getElementById('stack-dots');
+    const layers = inSubstack && project.layers[selectedLayerIndex].substacks
+        ? project.layers[selectedLayerIndex].substacks
+        : project.layers;
+    const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
+
+    // ---- breadcrumb (depth path) ----
+    if (bc) {
+        if (inSubstack && project.layers[selectedLayerIndex]) {
+            const parent = project.layers[selectedLayerIndex];
+            bc.innerHTML =
+                `<span class="crumb crumb-link" id="crumb-root">Stack</span>` +
+                `<span class="crumb-sep">›</span>` +
+                `<span class="crumb crumb-current">${escapeHtml(parent.name)}</span>`;
+            bc.classList.add('show');
+            const root = document.getElementById('crumb-root');
+            if (root) root.addEventListener('click', () => { if (typeof exitSubstack === 'function') exitSubstack(); });
+        } else {
+            bc.innerHTML = '';
+            bc.classList.remove('show');
+        }
+    }
+
+    // ---- position dots (right rail) ----
+    if (dotsEl) {
+        dotsEl.innerHTML = '';
+        layers.forEach((layer, i) => {
+            const dot = document.createElement('div');
+            dot.className = 'stack-dot' + (i === currentIndex ? ' on' : '');
+            dot.style.setProperty('--dot-accent', LAYER_TYPES[layer.type] || '#6b7280');
+            dot.title = layer.name;
+            dot.addEventListener('click', () => selectLayer(i));
+            dotsEl.appendChild(dot);
+        });
+        // Hide the rail entirely if there's only one card.
+        dotsEl.classList.toggle('show', layers.length > 1);
+    }
+}
+
+/** Lightweight update of just the active dot (called by selectLayer on nav). */
+function updateStackDots(index) {
+    const dotsEl = document.getElementById('stack-dots');
+    if (!dotsEl) return;
+    dotsEl.querySelectorAll('.stack-dot').forEach((d, i) => d.classList.toggle('on', i === index));
 }

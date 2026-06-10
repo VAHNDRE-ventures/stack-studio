@@ -72,15 +72,30 @@ setTimeout(async () => {
             selectLayer(idx);
             const before = document.querySelectorAll('.layer-card').length;
             enterSubstack();
-            await new Promise(x=>setTimeout(x,50));
+            await new Promise(x=>setTimeout(x,350));   // allow depth transition
             const after = document.querySelectorAll('.layer-card').length;
             r.enteredSub = (typeof inSubstack !== 'undefined') && inSubstack === true &&
                            after === project.layers[idx].substacks.length;
+            // breadcrumb shows the depth path; dots reflect the new lane count.
+            const bc = document.getElementById('stack-breadcrumb');
+            r.breadShown = !!bc && bc.classList.contains('show') &&
+                           bc.textContent.indexOf(project.layers[idx].name) !== -1;
+            const dots = document.getElementById('stack-dots');
+            r.dotsCount = dots ? dots.querySelectorAll('.stack-dot').length : -1;
+            r.dotsMatchSub = r.dotsCount === project.layers[idx].substacks.length;
             exitSubstack();
-            await new Promise(x=>setTimeout(x,50));
+            await new Promise(x=>setTimeout(x,350));   // allow depth transition
             r.exitedSub = (inSubstack === false) &&
                           document.querySelectorAll('.layer-card').length === before;
-        } else { r.enteredSub = true; r.exitedSub = true; }
+            // breadcrumb hidden back at root.
+            r.breadHiddenAtRoot = !!bc && !bc.classList.contains('show');
+        } else { r.enteredSub = true; r.exitedSub = true; r.breadShown = true; r.dotsMatchSub = true; r.breadHiddenAtRoot = true; }
+
+        // Dots at root reflect the top-level lane.
+        const dotsRoot = document.getElementById('stack-dots');
+        r.dotsRootCount = dotsRoot ? dotsRoot.querySelectorAll('.stack-dot').length : -1;
+        r.dotsRootMatch = r.dotsRootCount === project.layers.length;
+        r.activeDotOk = !!dotsRoot && dotsRoot.querySelectorAll('.stack-dot.on').length === 1;
     } catch(e) { window.__errors.push('script: ' + e.message); }
     r.errors = window.__errors;
     const out = document.createElement('pre'); out.id='out'; out.textContent = JSON.stringify(r); document.body.appendChild(out);
@@ -92,7 +107,7 @@ const tmp = path.join(__dirname, '..', '_carousel_harness.html');
 fs.writeFileSync(tmp, harness);
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ss-car-'));
 const res = spawnSync(CHROME, ['--headless=new','--disable-gpu','--no-sandbox',
-    `--user-data-dir=${userDataDir}`,'--window-size=1440,900','--virtual-time-budget=2600',
+    `--user-data-dir=${userDataDir}`,'--window-size=1440,900','--virtual-time-budget=3600',
     '--dump-dom', `${BASE}/_carousel_harness.html`], { encoding: 'utf8', maxBuffer: 50*1024*1024 });
 fs.rmSync(tmp, { force: true });
 try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch {}
@@ -112,6 +127,10 @@ log(r.wrapUp === true, 'navigating up from first wraps to last (infinite)');
 log(r.wrapDown === true, 'navigating down from last wraps to first (infinite)');
 log(r.enteredSub === true, 'entering a substack swaps the lane to children');
 log(r.exitedSub === true, 'exiting returns to the parent lane');
+log(r.breadShown === true, 'breadcrumb shows the depth path inside substacks');
+log(r.breadHiddenAtRoot === true, 'breadcrumb hides at root level');
+log(r.dotsMatchSub === true, `position dots match substack count`);
+log(r.dotsRootMatch === true && r.activeDotOk === true, `position dots match top-level count with one active (${r.dotsRootCount})`);
 
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' CHECK(S) FAILED'}`);
 process.exit(failures===0?0:1);
