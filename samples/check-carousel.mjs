@@ -72,7 +72,7 @@ setTimeout(async () => {
             selectLayer(idx);
             const before = document.querySelectorAll('.layer-card').length;
             enterSubstack();
-            await new Promise(x=>setTimeout(x,350));   // allow depth transition
+            await new Promise(x=>setTimeout(x,700));   // allow depth transition + lock release
             const after = document.querySelectorAll('.layer-card').length;
             r.enteredSub = (typeof inSubstack !== 'undefined') && inSubstack === true &&
                            after === project.layers[idx].substacks.length;
@@ -84,7 +84,7 @@ setTimeout(async () => {
             r.dotsCount = dots ? dots.querySelectorAll('.stack-dot').length : -1;
             r.dotsMatchSub = r.dotsCount === project.layers[idx].substacks.length;
             exitSubstack();
-            await new Promise(x=>setTimeout(x,350));   // allow depth transition
+            await new Promise(x=>setTimeout(x,700));   // allow depth transition + lock release
             r.exitedSub = (inSubstack === false) &&
                           document.querySelectorAll('.layer-card').length === before;
             // breadcrumb hidden back at root.
@@ -107,7 +107,7 @@ const tmp = path.join(__dirname, '..', '_carousel_harness.html');
 fs.writeFileSync(tmp, harness);
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ss-car-'));
 const res = spawnSync(CHROME, ['--headless=new','--disable-gpu','--no-sandbox',
-    `--user-data-dir=${userDataDir}`,'--window-size=1440,900','--virtual-time-budget=3600',
+    `--user-data-dir=${userDataDir}`,'--window-size=1440,900','--virtual-time-budget=4800',
     '--dump-dom', `${BASE}/_carousel_harness.html`], { encoding: 'utf8', maxBuffer: 50*1024*1024 });
 fs.rmSync(tmp, { force: true });
 try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch {}

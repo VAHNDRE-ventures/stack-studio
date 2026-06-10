@@ -805,13 +805,13 @@ function depthTransition(dir, swap) {
     setTimeout(() => {
         sc.classList.remove(outClass);
         swap();                       // rebuild lane (renderLayers + selectLayer)
-        sc.classList.add(inClass);
+        sc.classList.add(inClass);    // new cards start at opacity 0
         requestAnimationFrame(() => {
-            // next frame: removing the class animates from the offset to rest
+            // next frame: removing the class lets the base transition fade them in
             requestAnimationFrame(() => sc.classList.remove(inClass));
         });
-        setTimeout(() => { depthAnimating = false; }, 280);
-    }, 170);
+        setTimeout(() => { depthAnimating = false; }, 460);
+    }, 180);
 }
 
 

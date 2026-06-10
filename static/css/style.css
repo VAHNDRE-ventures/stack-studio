@@ -203,7 +203,7 @@ body {
     position: relative;
     overflow: hidden;
     perspective: 1600px;
-    perspective-origin: 50% 46%;
+    perspective-origin: 25% 46%;
 }
 
 /* A layer card is a real, text-holding panel (coverflow). The diamond is a
@@ -212,7 +212,7 @@ body {
    per-card transform (translateY/Z, rotateX, scale). */
 .layer-card {
     position: absolute;
-    top: 50%; left: 50%;
+    top: 50%; left: 25%;
     width: 300px; min-height: 150px;
     margin: -75px 0 0 -150px;
     background: linear-gradient(155deg, #243043 0%, #1a2436 70%, #161f30 100%);
@@ -394,27 +394,29 @@ body {
 }
 
 /* ---- Depth transition (enter/exit substacks) ----
-   The lane (all cards) slides + fades in the depth direction. 'in' = descending,
-   'out' = ascending. Cards keep their own coverflow transition; we animate the
-   whole container so it reads as a depth push. */
-.stack-container .layer-card {
-    /* base transition already set on .layer-card; depth uses container offset */
-}
+   Descend ('in'): the current level slides LEFT and fades out; the next level
+   fades in at its resting coverflow positions. Ascend ('out'): reverse — the
+   current level slides RIGHT and fades out; the parent level fades in.
+   Leaving overrides the per-card transform with !important (the cards are
+   vanishing, so collapsing the fan into a uniform shove reads cleanly at speed).
+   Entering only fades — the inline coverflow transform stays correct, so the
+   new lane fades in place. */
 .stack-container.depth-leaving-in .layer-card,
 .stack-container.depth-leaving-out .layer-card {
-    transition: transform 0.16s ease-in, opacity 0.16s ease-in !important;
+    transition: transform 0.18s ease-in, opacity 0.18s ease-in !important;
+    opacity: 0 !important;
 }
-.stack-container.depth-leaving-in .layer-card { opacity: 0; }
-.stack-container.depth-leaving-out .layer-card { opacity: 0; }
-/* entering: cards start offset on the depth axis, then animate to rest. These
-   need !important to beat the inline transform/opacity selectLayer() sets; when
-   the class is removed the inline values take over with the base transition. */
+.stack-container.depth-leaving-in  .layer-card { transform: translateX(-180px) scale(0.92) !important; }
+.stack-container.depth-leaving-out .layer-card { transform: translateX(180px) scale(0.92) !important; }
+
+/* entering: start invisible at the (correct) inline transform, then fade in
+   when the class is removed. !important on opacity beats the inline opacity
+   selectLayer() sets; transform is left to the inline value so there's no slide. */
 .stack-container.depth-entering-in .layer-card,
 .stack-container.depth-entering-out .layer-card {
     transition: none !important;
+    opacity: 0 !important;
 }
-.stack-container.depth-entering-in  .layer-card { transform: translateX(120px) scale(0.9) !important; opacity: 0 !important; }
-.stack-container.depth-entering-out .layer-card { transform: translateX(-120px) scale(0.9) !important; opacity: 0 !important; }
 
 .layer-content {
     text-align: center;
