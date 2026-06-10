@@ -690,64 +690,58 @@ function selectLayer(index, skipDetailsUpdate = false) {
     } else {
         selectedLayerIndex = index;
     }
-    
-    if (inSubstack) {
-        // Vertical stack layout for substacks
-        const CARD_SPACING = 60;
-        document.querySelectorAll('.layer-card:not(.parent-layer)').forEach((card, i) => {
-            card.classList.toggle('selected', i === index);
-            const label = card.querySelector('.layer-label');
-            if (label) {
-                label.classList.toggle('selected', i === index);
-            }
-            
-            // Toggle badge opacity to match label fade
-            const badge = card.querySelector('[id^="cost-badge-"]');
-            if (badge) {
-                badge.style.opacity = i === index ? '1' : '0';
-            }
-            
-            const yOffset = (i - index) * CARD_SPACING;
-            const zOffset = (layers.length - i - 1) * 20;
-            
-            if (i !== index) {
-                card.style.transform = `translateZ(${zOffset}px) translateY(${yOffset}px) translateX(150px)`;
-            } else {
-                card.style.transform = `translateZ(${zOffset}px) translateY(${yOffset}px) translateX(150px) scale(1.5)`;
-            }
-        });
-    } else {
-        // Circular carousel for main stack
-        const containerHeight = document.getElementById('stack-container').clientHeight;
-        const radius = containerHeight * 0.4;
-        
-        document.querySelectorAll('.layer-card').forEach((card, i) => {
-            card.classList.toggle('selected', i === index);
-            const label = card.querySelector('.layer-label');
-            if (label) {
-                label.classList.toggle('selected', i === index);
-            }
-            
-            // Toggle badge opacity to match label fade
-            const badge = card.querySelector('[id^="cost-badge-"]');
-            if (badge) {
-                badge.style.opacity = i === index ? '1' : '0';
-            }
-            
-            const anglePerCard = (Math.PI * 2) / layers.length;
-            const angle = (i - index) * anglePerCard;
-            
-            const x = Math.cos(angle) * radius - radius * 0.7;
-            const y = Math.sin(angle) * radius;
-            const zOffset = (layers.length - i - 1) * 20;
-            
-            if (i !== index) {
-                card.style.transform = `translateZ(${zOffset}px) translateX(${x}px) translateY(${y}px)`;
-            } else {
-                card.style.transform = `translateZ(${zOffset}px) translateX(${x}px) translateY(${y}px) scale(1.5)`;
-            }
-        });
-    }
+
+    // ---- Vertical coverflow layout with infinite wrap ----
+    // Cards fan top↔bottom; the selected card is centered + full size; the
+    // nearest neighbors recede in Z, rotate, scale, and fade. Each card's slot
+    // is the SHORTEST signed distance around the ring, so the first card sits
+    // just past the last (seamless wrap). A card crossing the seam is snapped
+    // (no transition) for that frame so it doesn't fly the long way.
+    const cards = document.querySelectorAll('.layer-card');
+    const n = cards.length;
+    const STEP_Y = 165;
+    const VISIBLE = 4;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    cards.forEach((card, i) => {
+        const isSel = i === index;
+        card.classList.toggle('selected', isSel);
+
+        // Shortest signed ring distance from the selected index to this card.
+        let off = i - index;
+        if (off > n / 2) off -= n;
+        else if (off < -n / 2) off += n;
+        const a = Math.abs(off);
+
+        const y = off * STEP_Y - Math.sign(off) * Math.min(a, VISIBLE) * 6;
+        const depth = -a * 150;
+        const rotX = off === 0 ? 0 : (off < 0 ? -26 : 26);
+        const scale = off === 0 ? 1.0 : Math.max(0.6, 0.86 - a * 0.06);
+        const opacity = a === 0 ? 1 : (a > VISIBLE ? 0 : Math.max(0, 0.92 - a * 0.26));
+        card.style.zIndex = 100 - a;
+
+        const tf = `translateY(${y}px) translateZ(${depth}px) rotateX(${rotX}deg) scale(${scale})`;
+
+        // Seam detection: if this card flipped to the far side this frame and is
+        // off-screen, snap it without transition so the wrap reads continuous.
+        const wrapped = card.__lastOff !== undefined &&
+            Math.sign(card.__lastOff) !== Math.sign(off) &&
+            Math.max(Math.abs(card.__lastOff), a) > VISIBLE;
+        card.__lastOff = off;
+
+        if (reduce || wrapped) {
+            const prev = card.style.transition;
+            card.style.transition = 'none';
+            card.style.transform = tf;
+            card.style.opacity = opacity;
+            void card.offsetWidth;          // force reflow to commit the snap
+            card.style.transition = prev;
+        } else {
+            card.style.transform = tf;
+            card.style.opacity = opacity;
+        }
+        card.style.pointerEvents = a > VISIBLE ? 'none' : 'auto';
+    });
     
     if (!skipDetailsUpdate) {
         const currentLayer = inSubstack 
@@ -1799,16 +1793,10 @@ document.addEventListener('keydown', (e) => {
     
     if (e.key === 'ArrowUp') {
         e.preventDefault();
-        isAnimating = true;
-        const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
-        selectLayer(currentIndex - 1);
-        setTimeout(() => { isAnimating = false; }, 250);
+        stepLayer(-1);
     } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        isAnimating = true;
-        const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
-        selectLayer(currentIndex + 1);
-        setTimeout(() => { isAnimating = false; }, 250);
+        stepLayer(1);
     } else if (e.key === 'ArrowRight') {
         e.preventDefault();
         enterSubstack();
@@ -1818,21 +1806,46 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-let wheelTimeout;
+// Shared throttled sibling-step for the stack carousel. Wraps around the ends
+// (infinite scroll) — selectLayer already normalizes out-of-range indices.
+let stackNavLock = false;
+function stepLayer(dir) {
+    if (currentView !== 'stack') return;
+    if (stackNavLock) return;
+    stackNavLock = true;
+    const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
+    selectLayer(currentIndex + dir);
+    setTimeout(() => { stackNavLock = false; }, 170);
+}
+
 document.getElementById('stack-container').addEventListener('wheel', (e) => {
     e.preventDefault();
-    clearTimeout(wheelTimeout);
-    wheelTimeout = setTimeout(() => {
-        const currentIndex = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
-        if (e.deltaY > 0) {
-            selectLayer(currentIndex + 1);
-        } else {
-            selectLayer(currentIndex - 1);
-        }
-    }, 50);
+    // Horizontal scroll / trackpad swipe = depth (substacks); vertical = siblings.
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        if (e.deltaX > 0) enterSubstack(); else exitSubstack();
+    } else {
+        stepLayer(e.deltaY > 0 ? 1 : -1);
+    }
 }, { passive: false });
 
 loadProject();
+
+// Re-lay-out the coverflow when the stack pane resizes (sidebar drag, window
+// resize) so card positions never go stale.
+(function () {
+    const sc = document.getElementById('stack-container');
+    if (sc && typeof ResizeObserver !== 'undefined') {
+        let raf;
+        new ResizeObserver(() => {
+            if (currentView !== 'stack') return;
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const idx = inSubstack ? selectedSubstackIndex : selectedLayerIndex;
+                selectLayer(idx, true);  // reposition only; don't rebuild details
+            });
+        }).observe(sc);
+    }
+})();
 
 // Touch/swipe support for mobile
 let touchStartX = 0;

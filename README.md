@@ -12,8 +12,11 @@ HTML5 Canvas — no build step, no framework, no server.
 
 It offers four synchronized views over a single project model:
 
-- **Stack** — a rotary carousel of layers; drill into substacks (nested to any
-  depth) with a breadcrumb in the details panel.
+- **Stack** — a vertical **coverflow** carousel: the selected layer is centered
+  and full-size, neighbors fan top/bottom with depth and fade. ↑↓ (or scroll)
+  move among siblings with infinite wrap; → descends into substacks (any
+  depth), ← climbs back, with a breadcrumb. Cards are text-first panels with a
+  small type-colored gem accent.
 - **Diagram** — a draggable C4-style architecture diagram with typed, labeled
   connections, recursive substack grouping, snap-to-grid, multi-select group
   dragging, group-aware auto-arrange, action-path highlighting, two layout
@@ -177,9 +180,9 @@ converter lives in `static/js/mermaid-import.js` and is pure/dependency-free.
 
 | Input | Action |
 |-------|--------|
-| ↑ / ↓ | Navigate layers (Stack view) |
-| → / ← | Enter / exit a substack |
-| Mouse wheel | Scroll layers (Stack) / zoom (Diagram) |
+| ↑ / ↓ | Navigate sibling layers, infinite wrap (Stack view) |
+| → / ← | Descend into / climb out of substacks (Stack view) |
+| Mouse wheel | Scroll layers; horizontal scroll = substack depth (Stack) / zoom (Diagram) |
 | Drag node | Reposition (Diagram) |
 | Ctrl/Cmd+click node | Toggle node in multi-selection (Diagram) |
 | Alt+drag node | Grab + move the node's whole subtree (Diagram) |
@@ -251,6 +254,7 @@ node samples/check-mermaid.mjs   # pure: Mermaid → project conversion (shapes,
 node samples/check-flow.mjs      # headless: Flow layout ranks, phase bands, back-edges
 node samples/check-ortho.mjs     # headless: orthogonal edge routing (both modes)
 node samples/check-stack-org.mjs # headless: stack grouping, boundary respect, L→R flow
+node samples/check-carousel.mjs  # headless: coverflow positioning, infinite wrap, depth nav
 node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
 ```
 

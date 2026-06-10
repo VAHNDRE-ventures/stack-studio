@@ -18,9 +18,11 @@ try{
   const badge=card.querySelector('.cost-badge');
   const rb=el=>{const b=el.getBoundingClientRect();return {x:Math.round(b.x),y:Math.round(b.y),r:Math.round(b.right),btm:Math.round(b.bottom),h:Math.round(b.height)};};
   r.name=rb(name); r.meta=rb(meta); r.badge=badge?rb(badge):null;
-  // badge should be BELOW the meta row (no overlap), and meta below name
+  // meta row (status/cost/substack pills) sits below the name; the cost badge
+  // lives INSIDE that meta row now, so assert the badge is below the name (not
+  // overlapping it) rather than below the whole meta row.
   r.metaBelowName = r.meta.y >= r.name.btm - 2;
-  r.badgeBelowMeta = r.badge ? (r.badge.y >= r.meta.btm - 2) : true;
+  r.badgeBelowName = r.badge ? (r.badge.y >= r.name.btm - 2) : true;
   // name should occupy multiple lines only if wide; check it's not absurdly tall (mid-word breaks make many short lines)
   r.nameHeight = r.name.h;
   // cost text contains no exponential notation
@@ -42,8 +44,8 @@ console.log('Stack label/badge layout check\n');
 if(!m){console.log('NO RESULT');process.exit(1);}
 const r=JSON.parse(m[1].replace(/&quot;/g,'"').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>'));
 log((r.errors||[]).length===0,`no errors${r.errors&&r.errors.length?': '+r.errors.join(' | '):''}`);
-log(r.metaBelowName,`type row sits below the name (no overlap)`);
-log(r.badgeBelowMeta,`cost badge sits below the type row (no overlap) [${r.badge?JSON.stringify(r.badge):'no badge'}]`);
+log(r.metaBelowName,`type/meta row sits below the name (no overlap)`);
+log(r.badgeBelowName,`cost badge sits below the name (no overlap) [${r.badge?JSON.stringify(r.badge):'no badge'}]`);
 log(r.noExponential,`cost badge has no exponential notation ("${r.badgeText}")`);
 log(r.noLingeringPositioning,'no lingering .positioning class (ghost fix)');
 console.log(`\n${failures===0?'ALL CHECKS PASSED':failures+' FAILED'}`);

@@ -147,158 +147,72 @@ function renderLayers() {
         
         return costText;
     };
-    
-    // If in substack, render parent layer on the left
-    if (inSubstack) {
-        const parentLayer = project.layers[selectedLayerIndex];
-        const parentCard = document.createElement('div');
-        parentCard.className = 'layer-card parent-layer';
-        parentCard.style.color = LAYER_TYPES[parentLayer.type];
-        parentCard.style.transform = 'translateX(-300px) scale(0.8)';
-        parentCard.style.opacity = '0.6';
-        parentCard.style.zIndex = '1';
-        
-        const parentLabel = document.createElement('div');
-        parentLabel.className = 'layer-label parent-layer-label';
-        parentLabel.style.opacity = '1';
-        parentLabel.innerHTML = `
-            <div class="label-name" style="font-size: 18px;">${escapeHtml(parentLayer.name)}</div>
-            <div class="label-type" style="font-size: 11px;">Parent Layer</div>
-        `;
-        parentCard.appendChild(parentLabel);
-        parentCard.addEventListener('click', exitSubstack);
-        container.appendChild(parentCard);
-    }
-    
+
+    // Build the coverflow cards. Each card is a real text-holding panel (the
+    // diamond is a small accent gem, not the whole shape). selectLayer() sets
+    // the per-card transform (vertical coverflow + infinite wrap).
     layers.forEach((layer, index) => {
+        const accent = LAYER_TYPES[layer.type] || LAYER_TYPES['Other'] || '#6b7280';
         const card = document.createElement('div');
         card.className = 'layer-card';
-        card.style.color = LAYER_TYPES[layer.type];
+        card.style.color = accent;          // currentColor drives gem + accents
         card.dataset.index = index;
-        
-        const zOffset = (layers.length - index - 1) * 20;
-        card.style.zIndex = layers.length - index;
-        
-        if (index === currentIndex) {
-            card.classList.add('selected');
-        }
-        
-        const label = document.createElement('div');
-        label.className = 'layer-label';
-        if (index === currentIndex) {
-            label.classList.add('selected');
-        }
-        
-        // Determine if this layer is selected (used for hover effects)
-        const isSelected = index === currentIndex;
-        
-        const hasSubstacks = !inSubstack && layer.substacks && layer.substacks.length > 0;
-        const substackPreview = hasSubstacks ? `
-            <span style="font-size: 12px; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 3px; cursor: ${isSelected ? 'pointer' : 'default'}; transition: background 0.2s; pointer-events: ${isSelected ? 'auto' : 'none'};" 
-                  onmouseover="${isSelected ? "this.style.background='rgba(255,255,255,0.2)'" : ''}" 
-                  onmouseout="${isSelected ? "this.style.background='rgba(255,255,255,0.1)'" : ''}"
-                  onclick="event.stopPropagation(); enterSubstack();">(${layer.substacks.length})</span>
-        ` : '';
-        const safeName = escapeHtml(layer.name);
-        const displayName = layer.name.length > 20 ? safeName : `<span style="white-space: nowrap;">${safeName}</span>`;
+        if (index === currentIndex) card.classList.add('selected');
+
+        const subCount = (layer.substacks && layer.substacks.length) || 0;
         const future = (typeof isFutureStatus === 'function') && isFutureStatus(layer.status);
-        const statusBadge = (layer.status && layer.status !== 'Active') ? `
-            <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 3px; ${future ? 'background: rgba(245,158,11,0.2); color: #f59e0b;' : 'background: rgba(148,163,184,0.2); color: #94a3b8;'}">${escapeHtml(layer.status)}</span>
-        ` : '';
-        label.innerHTML = `
-            <div class="label-name">${displayName}</div>
-            <div class="label-meta">
-                <div class="label-type">${escapeHtml(layer.type)}</div>
-                ${statusBadge}
-                ${substackPreview}
+        const statusPill = (layer.status && layer.status !== 'Active')
+            ? `<span class="layer-status-pill" style="${future ? 'background:rgba(245,158,11,0.18);color:#fbbf24;' : 'background:rgba(148,163,184,0.2);color:#94a3b8;'}">${escapeHtml(layer.status)}</span>`
+            : '';
+        const subPill = subCount
+            ? `<span class="layer-sub-pill" data-enter-sub="1">↳ ${subCount} substack${subCount > 1 ? 's' : ''}</span>`
+            : '';
+        const techLine = layer.technology
+            ? `<div class="layer-tech">${escapeHtml(layer.technology)}</div>` : '';
+        const descLine = layer.description
+            ? `<div class="layer-desc">${escapeHtml(layer.description)}</div>` : '';
+
+        card.innerHTML = `
+            <div class="layer-head">
+                <div class="layer-gem"></div>
+                <div class="layer-titles">
+                    <div class="label-name">${escapeHtml(layer.name)}</div>
+                    <div class="label-type">${escapeHtml(layer.type)}</div>
+                </div>
             </div>
+            ${techLine}
+            <div class="label-meta">
+                ${statusPill}
+                <span class="cost-badge" id="cost-badge-${escapeHtml(String(layer.id))}"></span>
+                ${subPill}
+            </div>
+            ${descLine}
         `;
-        
-        card.appendChild(label);
-        
-        // Cost badge lives inside the label flow (below name/type) so it can
-        // never overlap a wrapped layer name. It was previously absolutely
-        // positioned at a fixed offset, which collided with long names.
-        const costBadge = document.createElement('span');
-        costBadge.id = `cost-badge-${layer.id}`;
-        
-        const pointerEvents = isSelected ? 'auto' : 'none';
-        const cursor = isSelected ? 'help' : 'default';
-        
-        costBadge.className = 'cost-badge';
-        costBadge.style.cssText = `
-            pointer-events: ${pointerEvents};
-            cursor: ${cursor};
-            opacity: ${isSelected ? '1' : '0'};
-        `;
-        // Replace pipes with line breaks for clean display
-        const costText = formatCostBadge(layer);
-        costBadge.innerHTML = costText.replace(/ \| /g, '<br>');
-        
-        // Attach tooltip event listeners to cost badge ONLY if selected and has substacks
-        if (!inSubstack && isSelected && layer.substacks && layer.substacks.length > 0) {
-            const components = getLayerCostComponents(layer);
-            if (components.length > 0) {
-                const groupedComponents = groupCostsByPeriod(components);
-                const totalCost = calculateTotalLayerCost(layer);
-                
-                // Apply color coding
-                let bgColor = 'rgba(16, 185, 129, 0.2)'; // green
-                let textColor = '#10b981';
-                if (totalCost > 500) {
-                    bgColor = 'rgba(239, 68, 68, 0.2)'; // red
-                    textColor = '#ef4444';
-                } else if (totalCost > 200) {
-                    bgColor = 'rgba(245, 158, 11, 0.2)'; // yellow
-                    textColor = '#f59e0b';
-                }
-                costBadge.style.background = bgColor;
-                costBadge.style.color = textColor;
-                
-                // Build tooltip content - only line breaks between items
-                let tooltipContent = '<div style="font-weight: 500; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px;">Cost Breakdown:</div>';
-                
-                // Layer's own costs
-                if (layer.costModel && (layer.costModel.fixedCost > 0 || layer.costModel.variableCost > 0)) {
-                    tooltipContent += `<div style="margin-bottom: 4px;"><strong>${escapeHtml(layer.name)}</strong>`;
-                    if (layer.costModel.fixedCost > 0) {
-                        const symbol = layer.costModel.currency === 'USD' ? '$' : layer.costModel.currency === 'EUR' ? '€' : layer.costModel.currency === 'GBP' ? '£' : layer.costModel.currency;
-                        const period = layer.costModel.period === 'month' ? '/mo' : layer.costModel.period === 'year' ? '/yr' : `/${layer.costModel.period}`;
-                        tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Fixed: ${symbol}${formatCostAmount(layer.costModel.fixedCost)}${period}</div>`;
-                    }
-                    if (layer.costModel.variableCost > 0) {
-                        const symbol = layer.costModel.currency === 'USD' ? '$' : layer.costModel.currency === 'EUR' ? '€' : layer.costModel.currency === 'GBP' ? '£' : layer.costModel.currency;
-                        tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Variable: ${symbol}${formatCostAmount(layer.costModel.variableCost)} ${layer.costModel.variableUnit}</div>`;
-                    }
-                    tooltipContent += '</div>';
-                }
-                
-                // Substack costs
-                layer.substacks.forEach(substack => {
-                    if (substack.costModel && (substack.costModel.fixedCost > 0 || substack.costModel.variableCost > 0)) {
-                        tooltipContent += `<div style="margin-bottom: 4px;"><strong style="color: #e2e8f0;">${escapeHtml(substack.name)}</strong>`;
-                        if (substack.costModel.fixedCost > 0) {
-                            const symbol = substack.costModel.currency === 'USD' ? '$' : substack.costModel.currency === 'EUR' ? '€' : substack.costModel.currency === 'GBP' ? '£' : substack.costModel.currency;
-                            const period = substack.costModel.period === 'month' ? '/mo' : substack.costModel.period === 'year' ? '/yr' : `/${substack.costModel.period}`;
-                            tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Fixed: ${symbol}${formatCostAmount(substack.costModel.fixedCost)}${period}</div>`;
-                        }
-                        if (substack.costModel.variableCost > 0) {
-                            const symbol = substack.costModel.currency === 'USD' ? '$' : substack.costModel.currency === 'EUR' ? '€' : substack.costModel.currency === 'GBP' ? '£' : substack.costModel.currency;
-                            tooltipContent += `<div style="margin-left: 12px; color: #cbd5e1; font-size: 12px; white-space: nowrap;">Variable: ${symbol}${formatCostAmount(substack.costModel.variableCost)} ${substack.costModel.variableUnit}</div>`;
-                        }
-                        tooltipContent += '</div>';
-                    }
-                });
-                
-                costBadge.setAttribute('data-tooltip-content', tooltipContent);
-                
-                costBadge.addEventListener('mouseenter', function() { showCostTooltip(this); });
-                costBadge.addEventListener('mouseleave', function() { hideCostTooltip(); });
-            }
+
+        // Cost badge text (kept as innerHTML so multi-component costs line-break).
+        const costBadge = card.querySelector('.cost-badge');
+        if (costBadge) {
+            const costText = formatCostBadge(layer);
+            costBadge.innerHTML = costText.replace(/ \| /g, '<br>');
+            if (costText === 'Free') { costBadge.style.background = 'rgba(148,163,184,0.16)'; costBadge.style.color = '#94a3b8'; }
         }
-        
-        label.appendChild(costBadge);
-        card.addEventListener('click', () => selectLayer(index));
+
+        // Click behavior: a non-selected card selects it; a selected card with
+        // substacks descends; the substack pill always descends.
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('[data-enter-sub]')) {
+                e.stopPropagation();
+                if (index !== currentIndex) selectLayer(index);
+                enterSubstack();
+                return;
+            }
+            if (index === currentIndex) {
+                if (subCount) enterSubstack();
+            } else {
+                selectLayer(index);
+            }
+        });
+
         container.appendChild(card);
     });
 }
