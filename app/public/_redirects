@@ -1,0 +1,5 @@
+# SPA fallback: any unknown path serves the app. /viewer resolves here, and
+# because it runs inside the portal's iframe, EmbedBridge auto-enters read-only
+# embed mode (window.parent !== window). Real assets (/brand/*, /assets/*) are
+# served directly before this fallback applies.
+/*    /index.html   200

@@ -1,336 +1,193 @@
 # StackStudio
 
-## Architecture & Tech-Stack Visualizer
+## A 3D "city planner" for software architecture
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+StackStudio renders a software architecture as an explorable **neon city**: every
+component is a building, every call is traffic on the roads, trust zones are
+districts, and the whole thing is a live model you can trace, scrub, and cost.
 
-**StackStudio** is a client-side web app for visualizing and organizing
-software architectures. It is a fork and rework of
-[ztack](https://github.com/Oddzac/ztack), focused on correctly handling
-real-world stack layouts and diagrams. Built with vanilla JavaScript and the
-HTML5 Canvas — no build step, no framework, no server.
+It is a **React + WebGL** application (a deliberate rewrite of the original
+vanilla-JS/Canvas tool — see *History* below). The runnable app lives in
+[`app/`](app/); the durable data contract lives in
+[`MODEL.md`](MODEL.md) + [`model/types.ts`](model/types.ts).
 
-It offers four synchronized views over a single project model:
+### The four things it exists to show
 
-- **Stack** — a vertical **coverflow** carousel: the selected layer is centered
-  and full-size, neighbors fan top/bottom with depth and fade. ↑↓ (or scroll)
-  move among siblings with infinite wrap; → descends into substacks (any
-  depth), ← climbs back, with a breadcrumb. Cards are text-first panels with a
-  small type-colored gem accent.
-- **Diagram** — a draggable C4-style architecture diagram with typed, labeled
-  connections, recursive substack grouping, snap-to-grid, multi-select group
-  dragging, group-aware auto-arrange, action-path highlighting, two layout
-  modes (**Stack** composition and **Flow** process lanes), and
-  ultra-high-resolution PNG export.
-- **Actions** — named request paths traced across layers, with cost-per-operation.
-- **Cost** — a roll-up of per-layer fixed, variable, and percentage-of-value
-  costs, with a Current/Projected scope toggle and a per-transaction view.
----
+1. **Trace calls, evocatively** — pick a flow and glowing pulses (comet beads)
+   travel its route through the city; a running cost ticker rides along.
+2. **Scale limits, honestly** — congestion heat + per-building load meters +
+   driver-term free-tier cliffs show where the architecture strains, not just
+   that boxes connect.
+3. **Pricing, in real terms** — per-operation "toll" along a traced flow, a
+   whole-project **projected / mo** that scales with the load sliders, and a
+   fixed/per-txn rollup that drills down to the contributing nodes.
+4. **Live build progress** — a phase scrubber fills the city in over time,
+   `in_progress` nodes show an animated construction scaffold, and selecting a
+   phase spotlights its **blast radius**.
 
-![Stack view](screenshot-stack.png)
-
----
-
-![Diagram view](screenshot-diagram.png)
-
----
-
-![Actions view](screenshot-actions.png)
-
----
-
-![Cost view](screenshot-cost.png)
+Legibility is the first-order constraint: **semantic-zoom LOD** (metropolis →
+alleyway) reveals detail as you descend and collapses to labeled districts when
+you pull back, so you can follow every call without overcrowding.
 
 ---
 
 ## Run it
 
-Fully client-side. Serve the folder with any static server:
+The app is a Vite project in [`app/`](app/):
 
 ```bash
-# Python
-python -m http.server 8777
-
-# Node
-npx http-server -p 8777
+cd app
+npm install
+npm run dev        # dev server
+npm run build      # tsc + vite build (production bundle)
+npm run typecheck  # tsc --noEmit
+npm test           # vitest (pure model/engine tests)
 ```
 
-Then open `http://localhost:8777`. Opening `index.html` directly works too,
-though loading the bundled templates requires being served over `http://`.
+Open a project with **Open…** (or drag a `.json` onto the window). It auto-loads
+a generic e-commerce sample on first run. **HD / Lite** toggles rendering
+quality (auto-detected on first visit — see *Quality tiers*).
 
-## Data model
+> **Dev-env note (this machine):** npm defaults to a private registry that 401s
+> on public installs. Prefix commands with
+> `$env:npm_config_registry='https://registry.npmjs.org/'` (PowerShell). Do not
+> edit the user-level `.npmrc`.
 
-A project is a JSON document:
+---
 
-```jsonc
-{
-  "name": "My System",
-  "layers": [
-    {
-      "id": 1,
-      "name": "API Gateway",
-      "type": "API",                 // Core|Frontend|Backend|Database|DevOps|API|Actor|External|Other
-      "status": "Active",            // Active|Inactive|Deprecated|Planned|Proposed
-      "technology": "Express.js",
-      "description": "...",
-      "responsibilities": "...",
-      "connections": [               // canonical form: array of objects
-        { "targetId": 2, "type": "HTTP", "label": "what flows here (optional)" }
-      ],
-      "costModel": { "currency": "USD", "period": "month",
-                     "fixedCost": 400, "variableCost": 0.00002,
-                     "variableUnit": "per-request" },
-      "substacks": [ /* same shape, nested to any depth */ ]
-    }
-  ],
-  "diagramPositions": { "1": { "x": 200, "y": 200 } }  // saved node positions
-}
-```
+## Data model (the durable asset)
 
-Connections are stored as `{ targetId, type }` objects, with an optional
-`label` describing what data flows across the edge (shown on the diagram and
-in the connection tooltip). Legacy numeric and parallel-array forms are
-migrated automatically on load.
+A project is a **v2 JSON document** — a graph of `nodes` + `edges`, with `zones`
+(overlays), `flows` (traffic routes), `phases` (build timeline), `drivers`
+(baseline monthly activity), and a `cost` model per node. Design law:
+**closed trunk, open leaf** — every entity has a closed `kind` plus an open
+`subtype` + `meta`, so new component types never require a schema change.
 
-**Node types** include the infrastructure types plus `Actor` (external person,
-drawn with a person glyph) and `External` (third-party system) — both excluded
-from cost rollups. **Statuses** include `Planned` and `Proposed` for roadmap
-nodes, which render with a dashed border and a status pill so a single diagram
-can show current + future state.
+- **[`MODEL.md`](MODEL.md)** — the authoring contract and reasoning: node/edge/
+  zone kinds, the load model (`capacity.usage`, multi-driver `usage.plus`), the
+  cost model (meters/tiers, `transactionFees`, `Meter.perOp`, per-op toll,
+  full-future-state doctrine), the naming ruleset, and the LOD rendering
+  contract. **This is what an authoring agent reads.**
+- **[`model/types.ts`](model/types.ts)** — the machine-readable TypeScript
+  contract (`@model/*` alias). `MODEL_VERSION = 2.0.0`.
 
-The real-world sample in `samples/sample-saas.json` is used by the test suite.
+Legacy documents (the old Layer/Connection schema in [`SCHEMA.md`](SCHEMA.md),
+Mermaid, etc.) are brought in through **import maps** (`app/src/model/legacyImport.ts`),
+not migrations — they adapt *to* the v2 model. `SCHEMA.md` is retained only as
+the legacy reference; `MODEL.md` supersedes it.
 
-See **[SCHEMA.md](SCHEMA.md)** for the complete project schema reference —
-every field, enum, the cost model (including percentage-of-value costs), and
-the migration rules.
+---
 
-## Using it
-
-- **Add / edit layers** in the Stack view or via the details panel on the
-  right. The panel has Properties, Connections, Cost and Substacks tabs; the
-  open tab is preserved as you edit. The panel collapses (handle on its edge)
-  and is horizontally resizable (drag its left edge).
-- **Diagram view**: drag nodes to reposition them (positions are saved with
-  the project), drag the canvas to pan, scroll to zoom. The toolbar (top-right)
-  has zoom, Fit, Auto-arrange (↻), and Export (⬇) controls. A **Snap to grid**
-  toggle (top-left, with a 5–20px size picker) aligns dragged nodes to a grid
-  and shows it while on. Connection lines are labeled with their type; hover a
-  node for a tooltip with its name, type, description and connections. When an
-  action is selected, a dropdown (top-left) highlights its path across the
-  diagram.
-  - **Multi-select & group drag**: Ctrl/Cmd+click toggles nodes into a
-    selection; dragging any selected node moves the whole set together.
-    Alt+drag a node grabs its entire subtree (node + all descendants) as one
-    movable group. Selected nodes get a dashed highlight ring; Escape or an
-    empty-canvas click clears the selection.
-  - **Auto-arrange** (↻) relays out the diagram from scratch into a compact
-    grid (top-level blocks packed close to a square aspect, no group-box
-    overlaps). It **overrides any manual placements** — it's a single undo
-    step, so Ctrl+Z restores your hand-arranged layout if you prefer it.
-  - **Export** (⬇) saves an ultra-high-resolution PNG **plus a companion
-    Markdown legend** (`<name>_legend.md`) documenting every node — name, type,
-    status, technology, description, and outgoing connections — grouped by
-    phase. The image aspect ratio is exactly the bounding box of every element
-    (nodes + group boxes) plus 20px padding — no viewport crop or whitespace.
-    Renders at 4× and caps the longest side at 12000px to stay within browser
-    limits.
-  - **Layout modes** (the **Flow / Stack** toggle): StackStudio carries two
-    orthogonal kinds of meaning, and the diagram can lay out either way:
-    - **Stack** (composition) — the default. Substacks nest to the right of
-      their parent inside dashed group boxes (tinted, rounded, with a name
-      pill), and edges route as **orthogonal (right-angle) connectors**
-      (horizontal-major: exit a node's side, jog in the column corridor, enter
-      the next) so the dependency flow reads left→right. Overlapping top-level
-      group boxes are pushed apart on layout. Right for architectures where a
-      service *owns* its sub-modules.
-    - **Flow** (process) — a layered top→bottom layout like a Mermaid
-      flowchart. Nodes are ranked by edge direction; nodes sharing a `group`
-      are packed into labeled **phase lanes**; edges are drawn as **orthogonal
-      (right-angle) connectors** that exit the bottom of a node and enter the
-      top of the next, fanned out into separate lanes so they don't overlap on
-      hubs; feedback/back-edges route around the side without breaking ranking.
-      Right for pipelines where data *passes through* stages. A Mermaid import
-      switches here automatically.
-- **File menu**: New, Open (import JSON), **Import Mermaid…** (convert a
-  `flowchart`/`graph` definition — see below), Save (export JSON), and
-  Templates. Projects auto-save to `localStorage`.
-
-### Importing Mermaid
-
-**File → Import Mermaid…** converts a Mermaid `flowchart` / `graph` definition
-into a StackStudio project:
-
-- `subgraph ID["Title"] … end` → the subgraph becomes a **phase/lane** (a
-  `group` tag); the nodes inside it stay flat top-level nodes tagged with that
-  group — not nested substacks. (A flowchart is a process graph, not a
-  composition tree, so containment would misrepresent it.)
-- bare nodes outside any subgraph → ungrouped top-level nodes.
-- node shape → layer type, best-effort: `[(db)]` → Database, `{gw}` /
-  `{{hex}}` → API, `([stadium])` / `[[subroutine]]` → Core, `((circle))` →
-  Actor, `(rounded)` → Backend, `[rect]` → Other.
-- edges (`-->`, `-- text -->`, `-.->`, `==>`), chains (`A --> B --> C`), and
-  fan-out (`A --> B & C`) → connections. Dotted edges map to **Async**; edge
-  text becomes the connection label. A subgraph-level edge (`SRC --> COOKIE`)
-  expands to edges from each member node.
-
-The import opens in **Flow layout** with the subgraphs as phase lanes. The
-converter lives in `static/js/mermaid-import.js` and is pure/dependency-free.
-
-### Keyboard & navigation
-
-| Input | Action |
-|-------|--------|
-| ↑ / ↓ | Navigate sibling layers, infinite wrap (Stack view) |
-| → / ← | Descend into / climb out of substacks (Stack view) |
-| Mouse wheel | Scroll layers; horizontal scroll = substack depth (Stack) / zoom (Diagram) |
-| Drag node | Reposition (Diagram) |
-| Ctrl/Cmd+click node | Toggle node in multi-selection (Diagram) |
-| Alt+drag node | Grab + move the node's whole subtree (Diagram) |
-| Drag canvas | Pan (Diagram) |
-| Ctrl+Z / Ctrl+Y | Undo / Redo |
-| Escape | Clear diagram multi-selection |
-
-## Actions
-
-An **action** is a named operation traced through the stack — a request path
-like *User Login* or *Checkout Flow*. Actions answer two questions a static
-diagram can't:
-
-1. **What does this operation touch?** Each action lists the layers it hits in
-   order, so a path is documentation a new engineer can read.
-2. **What does it cost?** Combining each layer's variable cost with how many
-   times the action calls it (× monthly volume) turns the per-layer Cost view
-   into real cost-per-operation math.
-
-Selecting an action highlights its path on the Diagram view (the rest of the
-stack dims), so you can see the operation flow through the architecture.
-
-Actions are stored on the project under `usePaths` and are saved/exported with
-everything else. Assembly edits (adding a layer, changing call counts)
-auto-save — no separate Save step required.
-
-## Architecture
+## Architecture (where the code lives)
 
 ```
-index.html              entry point, markup, script load order
-static/css/style.css    all styling
-static/js/
-  utils.js              HTML escaping + canonical connection accessor (loads first)
-  data.js               data model, migrations, cost engine, templates
-  mermaid-import.js     Mermaid flowchart → project converter (pure)
-  validation.js         project validation
-  views/
-    stackView.js        renderLayers — the carousel
-    detailsView.js      renderLayerDetails — the right panel
-    actionsView.js      renderActionsView — flows
-    costDashboardView.js renderCostDashboard
-  app.js                state, view switching, selection, navigation, undo/redo
-  diagram.js            canvas rendering, layout, drag, zoom/pan
+stack-studio/
+  MODEL.md            v2 data contract (authoring reference)
+  SCHEMA.md           legacy schema (historical reference)
+  ROADMAP.md          path to the hosted portal
+  model/types.ts      canonical v2 TypeScript types  (@model)
+  app/
+    src/
+      App.tsx         thin composition shell (Canvas + Sidebar + overlays)
+      store.ts        Zustand store — all app state + actions + quality/paint
+      model/          PURE engines (unit-tested with vitest):
+        costForesight.ts  free-tier cliffs + fixed/txn rollup + contributors
+        opCost.ts         per-operation toll, flowCost, projectMonthly
+        usage.ts          driver-linked usage/congestion (multi-driver)
+        load.ts           congestion ratio + heat color
+        validate.ts       v2 project validator (the ingest gate)
+        rateCatalog.ts    verified provider free-tier rates
+        legacyImport.ts   legacy/Mermaid → v2 import map
+        flatten.ts        which nodes render as buildings vs data-entity "rooms"
+      city/           the r3f 3D scene (one component per concern):
+        CityScene, Building, Road, District, Traffic, FlowCostTicker,
+        ComplianceHull, Construction, Floor, Atmosphere, PaintSplatters,
+        Backdrop, QualityController, LodProvider/lod, layout, routing,
+        visuals, derive, path, glowTexture
+      hud/            the DOM control panels (each reads the store):
+        Sidebar, DriversPanel, CostPanel, FlowPanel, BuildPanel,
+        OverlayPanel, LegendPanel, Modal, CornerWatermark, Splash, modals
+      sample/ecommerce.ts   the generic reference project
+      branding/assets.ts    brand asset URLs  (served from app/public/brand)
 ```
 
-Each renderer is defined in exactly one place (the `views/` modules are the
-single source of truth — see the changelog for why this matters).
+**Separation of concerns:** the domain lives in `model/` (pure, tested), the 3D
+scene in `city/`, the controls in `hud/`, all shared state in `store.ts`, and
+`App.tsx` is just composition. Components subscribe to the Zustand store rather
+than being prop-drilled.
+
+### Rendering stack
+
+100% client-side WebGL — no server-side rendering.
+
+- **three.js** — the WebGL engine (meshes, lights, shadow maps, reflections,
+  clipping planes).
+- **@react-three/fiber** — React renderer for three (`<Canvas>`, `useFrame`).
+- **@react-three/drei** — `OrbitControls`, `Bounds`, `MeshReflectorMaterial`,
+  `ContactShadows`, `Billboard`, `Line`, `Text` (troika SDF text).
+- **@react-three/postprocessing** / **postprocessing** — `EffectComposer`,
+  `Bloom`, `Vignette`.
+- **Zustand** (state), **Vite** (build), **React 19** (DOM UI).
+
+Performance: traffic pulses are a single `InstancedMesh`; the paint splatters are
+composited to one `CanvasTexture`; shadows render on-demand (static scene); the
+LOD sampler is throttled. See `QualityController`.
+
+### Quality tiers (graceful degradation)
+
+`HD` vs `Lite`, auto-detected on first visit (mobile / low-core / low-memory /
+software-GPU → Lite), overridable via the sidebar toggle (persisted):
+
+| | HD | Lite |
+|---|---|---|
+| Pixel ratio | up to 2× device | 1× |
+| Shadows | on (on-demand) | off |
+| Reflective floor | yes | matte |
+| Contact shadows | yes | no |
+| Post | Bloom + Vignette + MSAA 4 | Bloom only, MSAA 0 |
+
+---
 
 ## Testing
 
-Zero-dependency checks under `samples/` (dev server must be running on
-`:8777` for the browser ones):
+Pure engines are unit-tested with **vitest** (`npm test`): cost foresight,
+per-op/flow cost, projected-monthly, usage/congestion (incl. multi-driver),
+the LOD hysteresis, and the validator. The 3D/visual layer is verified by eye
+on a GPU (headless WebGL is unreliable). Keep the suite green on every change.
 
-```bash
-node samples/validate.mjs        # data layer: migration, connections, escaping
-node samples/check-wiring.mjs    # static: no dup functions, handlers resolve
-node samples/smoke.mjs           # headless Chrome: boots, loads sample, all views
-node samples/check-diagram.mjs   # headless: layout, edges, drag persistence
-node samples/check-actions.mjs   # headless: action persistence + diagram path highlight
-node samples/check-schema.mjs    # headless: Planned status, Actor type, connection labels
-node samples/check-cost.mjs      # headless: percentage costs + status-aware rollup
-node samples/check-nesting.mjs   # headless: recursive substacks (layout, cost, deep nav)
-node samples/check-stack-layout.mjs # headless: no overlap, no exponential, no ghost
-node samples/check-snap.mjs      # headless: snap-to-grid toggle, rounding, realign
-node samples/check-undo.mjs      # headless: field/drag undo, Ctrl+Z inside inputs
-node samples/check-group-drag.mjs # headless: multi-select, group drag, group-aware arrange
-node samples/check-export.mjs    # headless: hi-res PNG export bounds, aspect, restore
-node samples/check-mermaid.mjs   # pure: Mermaid → project conversion (shapes, edges, fan-out)
-node samples/check-flow.mjs      # headless: Flow layout ranks, phase bands, back-edges
-node samples/check-ortho.mjs     # headless: orthogonal edge routing (both modes)
-node samples/check-stack-org.mjs # headless: stack grouping, boundary respect, L→R flow
-node samples/check-carousel.mjs  # headless: coverflow positioning, infinite wrap, depth nav
-node samples/shoot.mjs <view>    # screenshot a view to samples/shots/
-```
+Some tests independently validate a real, out-of-repo client model when present
+(`describe.skipIf(!exists)`); they never commit that data (see below).
 
-## Changelog (fork from ztack)
+---
 
-This fork prioritized correctness on real stacks over new features:
+## Confidential-data invariant (hard rule)
 
-- **HTML escaping everywhere.** Names, descriptions and other text are now
-  escaped before insertion. Real data (quotes, backticks, angle brackets)
-  previously corrupted inputs and the diagram, and was an injection vector.
-- **One connection format.** Standardized on `{ targetId, type }` objects (the
-  format real exports use). The old migration converted *toward* a
-  parallel-array form that the rest of the app didn't read.
-- **Real node dragging.** The diagram now supports drag-to-reposition with
-  positions persisted on the project — previously advertised but never
-  implemented. Layout is computed once (and on structural change), not every
-  frame, so drags survive and the CPU isn't pegged.
-- **No more duplicate renderers.** An earlier refactor left `renderLayers`,
-  `renderActionsView` and `updateActionsListOnly` defined in both `app.js`
-  and their view module; `app.js` loaded last and silently shadowed the
-  modules. The duplicates were removed.
-- **Details panel** keeps your active tab across edits and only re-renders
-  other views when a label-affecting field changes.
-- **Robustness**: `zoomToFit` no longer divides by zero (NaN → blank canvas),
-  canvas listeners bind once, and per-frame `console.log` spam was removed.
-- **Cleanup**: removed the non-functional Flask stub, the unused `config.js`,
-  the committed `debug.log`, and inline-styled menus (now CSS classes).
-- Added on-canvas connection-type labels and an Auto-arrange control.
+This repo is the **generic tool** and must stay free of any client data.
+Templates/samples stay generic (e-commerce, 3-tier, etc.). Real client models are
+loaded at runtime from their own out-of-repo location and are **never** committed
+here. See [`STACK-STUDIO-SCHEMA-GAPS.md`](STACK-STUDIO-SCHEMA-GAPS.md) and
+[`MODEL.md`](MODEL.md).
 
-### Since the initial fork
+---
 
-Feature and correctness work layered on after the rework, each with a
-headless test under `samples/`:
+## Where it's headed
 
-- **n-level substacks.** The data model, cost rollup, diagram layout
-  (recursive grouping boxes, content-aware column spacing, row wrapping for
-  wide stacks) and details-panel navigation (drill-in with a breadcrumb) all
-  handle arbitrary nesting depth.
-- **Lifecycle status + node types.** `Planned`/`Proposed` statuses (dashed,
-  excluded from current-state cost) and `Actor`/`External` node types (person
-  glyph, excluded from cost).
-- **Connection payload labels.** Optional per-edge "what flows here" label,
-  rendered on the edge and in the tooltip.
-- **Cost model.** Percentage-of-transaction-value costs (`percentageCost` +
-  `percentageFixed` against a project `avgTransactionValue`) and a
-  Current/Projected scope toggle that includes or excludes future nodes.
-- **Actions.** Defined purpose (what an operation touches + costs), assembly
-  edits auto-save, the diagram shows an action-path **dropdown** to switch or
-  clear the highlighted path, and the list renders actions of any `source`.
-- **Diagram UX.** Snap-to-grid (5–20px) with a grid overlay; edge-clipped
-  connection routing. **Multi-select** (Ctrl/Cmd+click) with **group dragging**
-  — move a whole selection or Alt+grab a node's entire subtree together.
-  **Group-aware auto-arrange** that separates overlapping top-level group boxes
-  so the dashed borders never intersect. **Ultra-high-res PNG export** framed
-  exactly to all elements + 20px padding (4×, capped at 12000px).
-- **Undo/redo robustness.** Node drags (single and group) are undoable, the
-  auto-arrange is one undo step, and Ctrl+Z while a form field is focused
-  commits the field's edit then runs the app undo (instead of dead-ending in
-  the browser's native text-undo).
-- **Mermaid import.** File → Import Mermaid converts a `flowchart`/`graph`
-  definition into a project — subgraphs become **phase lanes** (a `group` tag),
-  their nodes stay flat, node shapes map to types, and edges (incl. chains,
-  fan-out, dotted, and labeled) become typed connections.
-- **Flow vs. Stack layout.** The diagram has two layout modes: Stack
-  (composition — substacks nested in group boxes) and Flow (process — nodes
-  ranked top→bottom by edge direction with labeled phase lanes, à la a Mermaid
-  flowchart, with phase-aware ranking so feedback loops don't interleave the
-  lanes, and **orthogonal right-angle edge routing** fanned across ports so
-  hub edges don't overlap). Toggle in the diagram toolbar; persisted per
-  browser.
-- **Sidebar.** Horizontally resizable (persisted), collapse handle glued to
-  the panel edge, responsive width.
-- **Stack view fixes.** No ghost-card flash on entry, word-boundary wrapping
-  for long names, no name/cost overlap, plain-decimal cost formatting (no
-  `3e-7`).
+[`ROADMAP.md`](ROADMAP.md): host StackStudio as an authenticated **portal** on
+the Vahndre site where granted users view a project's current state, fed by a
+per-project data store that **agents update to the contract** (validator-gated).
+The tool stays generic; the data lives separately.
+
+---
+
+## History
+
+StackStudio began as a fork/rework of [ztack](https://github.com/Oddzac/ztack) —
+a vanilla-JS/HTML5-Canvas tool with four 2D views (Stack carousel, C4 diagram,
+Actions, Cost). It was rebuilt from the ground up into the current 3D React +
+WebGL city; there is **no backward compatibility** with the legacy JSON schema
+(legacy docs come in via import maps). The old schema is documented in
+`SCHEMA.md` for reference only.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Original work © the ztack authors.
+MIT — see [LICENSE](LICENSE). Original 2D work © the ztack authors.

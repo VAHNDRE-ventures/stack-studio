@@ -3,6 +3,12 @@ Notes
 *.local.md
 debug.log
 
+# Node / build artifacts (the v2 app lives in app/)
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
 # Test harness artifacts
 _smoke_harness.html
 samples/_*.html

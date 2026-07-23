@@ -1,0 +1,13 @@
+# Cloudflare Pages headers for the StackStudio viewer deploy.
+# The viewer is embedded read-only in the Vahndre portal via an <iframe>.
+# - frame-ancestors: who may frame us (the portal + internal + local dev). No
+#   X-Frame-Options is set (it can't express multiple origins; frame-ancestors does).
+# - worker-src blob: — troika-three-text (drei <Text>) runs its SDF glyph builder
+#   in a blob-URL Web Worker.
+# - connect-src cdn.jsdelivr.net — troika's default font resolver fetches font data
+#   from jsDelivr when no font is pinned. (Follow-up: self-host a default font to
+#   drop this — see prism handoff.)
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; frame-ancestors 'self' https://portal.vahndre.com https://internal.vahndre.com http://localhost:* http://127.0.0.1:*
