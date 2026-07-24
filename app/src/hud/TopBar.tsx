@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { FolderOpen, Sparkles, Download, Monitor } from 'lucide-react';
+import { FolderOpen, Sparkles, Download, Monitor, Brush } from 'lucide-react';
 import { useStudio } from '../store';
 
 export function TopBar() {
@@ -11,6 +11,8 @@ export function TopBar() {
   const quality = useStudio((s) => s.quality);
   const toggleQuality = useStudio((s) => s.toggleQuality);
   const readOnly = useStudio((s) => s.readOnly);
+  const painted = useStudio((s) => s.painted);
+  const togglePaint = useStudio((s) => s.togglePaint);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const exportJson = () => {
@@ -31,6 +33,17 @@ export function TopBar() {
         <h1>{projectName}</h1>
       </div>
       <div className="tb-actions">
+        {/* Studio-paint toggle — the corner watermark's utility, surfaced in the
+            header on mobile where the corner mark is hidden by the full-width dock. */}
+        <button
+          type="button"
+          className={`tb-paint${painted ? ' active' : ''}`}
+          onClick={togglePaint}
+          title={painted ? 'Wipe the paint — dial back visual noise' : 'Repaint the studio'}
+          aria-label="Toggle studio paint"
+        >
+          <Brush size={15} />
+        </button>
         {!readOnly && (
           <button type="button" onClick={() => fileRef.current?.click()} title="Open a project…">
             <FolderOpen size={15} />

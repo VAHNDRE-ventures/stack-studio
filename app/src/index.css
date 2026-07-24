@@ -210,6 +210,20 @@ body,
   background: rgba(137, 180, 250, 0.12);
 }
 
+/* Paint toggle lives in the corner watermark on desktop; surfaced as the
+   leftmost top-bar action on mobile (where the corner mark is hidden). */
+.tb-paint {
+  display: none;
+}
+
+.tb-actions button.tb-paint svg {
+  color: #6c7086;
+}
+
+.tb-actions button.tb-paint.active svg {
+  color: #89b4fa;
+}
+
 .lens-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -792,4 +806,102 @@ body,
 @keyframes awaiting-pulse {
   0%, 100% { opacity: 0.25; transform: scale(0.8); }
   50% { opacity: 1; transform: scale(1.1); }
+}
+
+
+/* ============================================================
+   Mobile / small-screen tuning (≤ 640px)
+   The 3D city stays the hero; panels become full-width sheets
+   instead of cramped desktop columns, and tap targets grow.
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Top bar: icon-only actions so the row never crowds. */
+  .top-bar {
+    height: 44px;
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .top-bar h1 {
+    font-size: 12px;
+  }
+  .tb-actions {
+    gap: 4px;
+  }
+  .tb-actions button {
+    padding: 7px;
+  }
+  .tb-actions button span {
+    display: none;
+  }
+
+  /* Icon rail: bigger, thumb-friendly targets. */
+  .icon-rail {
+    top: 52px;
+    left: 8px;
+    width: 46px;
+    gap: 4px;
+  }
+  .rail-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Lens drawer: a top sheet spanning rail → right edge, upper half. */
+  .lens-drawer {
+    top: 52px;
+    left: 62px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    max-height: 52vh;
+  }
+
+  /* Inspector: a bottom sheet (full width) rather than a narrow right column. */
+  .inspector {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: 62vh;
+    z-index: 14; /* above the dock while inspecting */
+  }
+
+  /* Bottom dock: full width; sliders stack for real drag room. */
+  .bottom-dock {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+  .dock-driver {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .pressure-chip {
+    max-width: 100%;
+  }
+
+  /* Decorative watermark would collide with the full-width dock; its paint
+     utility is surfaced as the leftmost top-bar action instead (.tb-paint). */
+  .corner-watermark {
+    display: none;
+  }
+  .tb-paint {
+    display: inline-flex;
+  }
+}
+
+/* Touch devices: don't leave hover highlights stuck on after a tap. */
+@media (hover: none) {
+  .rail-btn:hover,
+  .hud .clickable:hover,
+  .icon-btn:hover {
+    background: none;
+  }
+  .pressure-chip:hover {
+    border-color: #2a3350;
+  }
 }
