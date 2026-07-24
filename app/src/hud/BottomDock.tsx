@@ -67,13 +67,16 @@ export function BottomDock() {
                 </div>
               );
             })}
-            {allowScenario && (
+          </div>
+
+          {allowScenario && (
+            <div className="dock-footer">
               <button className="dock-reset" type="button" onClick={() => resetDrivers()} title="Reset to baseline">
                 <RotateCcw size={13} />
                 <span>Reset</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {pressure.length > 0 && (
             <div className="dock-pressure">

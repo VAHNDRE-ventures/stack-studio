@@ -297,15 +297,13 @@ body,
 }
 
 .dock-driver {
-  min-width: 130px;
-  flex: 1 1 130px;
+  flex: 1 1 150px;
 }
 
 .dock-reset {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  align-self: center;
   background: none;
   border: none;
   color: #89b4fa;
@@ -313,6 +311,12 @@ body,
   font-size: 11px;
   cursor: pointer;
   padding: 2px 4px;
+}
+
+.dock-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .dock-reset:hover {
