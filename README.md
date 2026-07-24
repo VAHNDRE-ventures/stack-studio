@@ -11,6 +11,8 @@ vanilla-JS/Canvas tool — see *History* below). The runnable app lives in
 [`app/`](app/); the durable data contract lives in
 [`MODEL.md`](MODEL.md) + [`model/types.ts`](model/types.ts).
 
+![The StackStudio city — trust-zone districts, call-tracing traffic, load-driver sliders, and cost foresight](screenshots/base.png)
+
 ### The four things it exists to show
 
 1. **Trace calls, evocatively** — pick a flow and glowing pulses (comet beads)
@@ -28,6 +30,11 @@ vanilla-JS/Canvas tool — see *History* below). The runnable app lives in
 Legibility is the first-order constraint: **semantic-zoom LOD** (metropolis →
 alleyway) reveals detail as you descend and collapses to labeled districts when
 you pull back, so you can follow every call without overcrowding.
+
+| | |
+|---|---|
+| ![Inspect a node — capacity, cost, and data-entity rooms](screenshots/detail.png) | ![Cost drilled down to the node](screenshots/cost.png) |
+| **Detail on demand + honest scale** — click any node: capacity vs. ceiling (here **324% over → fills in ~4 mo**), cost, and the store's `data_entity` rooms. | **Pricing, drilled down** — trace a flow and break the per-transaction cost to the responsible node (PayPal **2.9% + $0.30**). |
 
 ---
 
@@ -104,9 +111,10 @@ stack-studio/
         ComplianceHull, Construction, Floor, Atmosphere, PaintSplatters,
         Backdrop, QualityController, LodProvider/lod, layout, routing,
         visuals, derive, path, glowTexture
-      hud/            the DOM control panels (each reads the store):
-        Sidebar, DriversPanel, CostPanel, FlowPanel, BuildPanel,
-        OverlayPanel, LegendPanel, Modal, CornerWatermark, Splash, modals
+      hud/            the DOM HUD — icon rail + one-lens drawer + bottom dock:
+        Hud (shell), TopBar, IconRail, LensDrawer, BottomDock, lenses,
+        CostPanel, FlowPanel, BuildPanel, OverlayPanel, LegendPanel,
+        Modal, CornerWatermark, Splash, modals
       sample/ecommerce.ts   the generic reference project
       branding/assets.ts    brand asset URLs  (served from app/public/brand)
 ```
@@ -127,7 +135,7 @@ than being prop-drilled.
   `ContactShadows`, `Billboard`, `Line`, `Text` (troika SDF text).
 - **@react-three/postprocessing** / **postprocessing** — `EffectComposer`,
   `Bloom`, `Vignette`.
-- **Zustand** (state), **Vite** (build), **React 19** (DOM UI).
+- **Zustand** (state), **lucide-react** (HUD icons), **Vite** (build), **React 19** (DOM UI).
 
 Performance: traffic pulses are a single `InstancedMesh`; the paint splatters are
 composited to one `CanvasTexture`; shadows render on-demand (static scene); the

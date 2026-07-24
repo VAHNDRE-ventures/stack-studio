@@ -8,6 +8,8 @@ import { flowCost } from './model/opCost';
 
 export type CostFocus = 'fixed' | 'txn' | 'monthly' | null;
 export type Quality = 'high' | 'lite';
+/** Which single lens drawer is open in the icon-rail HUD (one at a time). */
+export type Lens = 'cost' | 'flow' | 'build' | 'overlay' | 'legend';
 export type ModalData = { title: string; note: string; rows: [string, string][]; source?: string };
 
 /** True if the GPU reports as software/basic (unmasked renderer, when available). */
@@ -95,6 +97,14 @@ export interface StudioState {
   /** Embed: waiting for the first model over postMessage. */
   awaitingModel: boolean;
 
+  // --- HUD shell (icon-rail + one-lens drawer + bottom dock) ---
+  /** The single open lens drawer, or null when the city is unobstructed. */
+  openLens: Lens | null;
+  /** Whether the bottom driver-control dock is expanded. */
+  dockOpen: boolean;
+  /** Clean view: hide all chrome to just the city (screenshots / portal posture). */
+  cleanView: boolean;
+
   // --- actions ---
   /** Swap the active project and reset all view controls to its baselines. */
   loadProject: (p: Project) => void;
@@ -128,6 +138,15 @@ export interface StudioState {
   setQuality: (q: Quality) => void;
   /** Escape: clear all transient focus/selection UI. */
   dismiss: () => void;
+
+  /** Open the given lens, or close the drawer if it's already the open one. */
+  toggleLens: (l: Lens) => void;
+  /** Open a specific lens (or close with null). */
+  setLens: (l: Lens | null) => void;
+  /** Expand/collapse the bottom driver-control dock. */
+  toggleDock: () => void;
+  /** Toggle clean view (hide all chrome). */
+  toggleCleanView: () => void;
 }
 
 const baseline = (p: Project) => ({
@@ -152,6 +171,9 @@ export const useStudio = create<StudioState>((set, get) => ({
   readOnly: false,
   allowScenario: true,
   awaitingModel: false,
+  openLens: null,
+  dockOpen: true,
+  cleanView: false,
 
   loadProject: (p) => set({ ...baseline(p), awaitingModel: false }),
 
@@ -215,5 +237,11 @@ export const useStudio = create<StudioState>((set, get) => ({
       quality: o.quality ?? s.quality,
     })),
   setQuality: (quality) => set({ quality }),
-  dismiss: () => set({ sel: null, modal: null, activeOverlay: undefined, costFocus: null }),
+  dismiss: () =>
+    set({ sel: null, modal: null, activeOverlay: undefined, costFocus: null, openLens: null }),
+
+  toggleLens: (l) => set((s) => ({ openLens: s.openLens === l ? null : l })),
+  setLens: (l) => set({ openLens: l }),
+  toggleDock: () => set((s) => ({ dockOpen: !s.dockOpen })),
+  toggleCleanView: () => set((s) => ({ cleanView: !s.cleanView })),
 }));

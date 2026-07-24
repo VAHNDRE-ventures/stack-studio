@@ -9,45 +9,373 @@ body,
   overflow: hidden;
 }
 
-.hud {
+/* ============================================================
+   HUD shell: top bar + left icon rail + one-lens drawer + bottom dock
+   (.hud is now a pure CONTENT-SCOPE class carried by the drawer scroll
+    and dock body, so the shared .sec/.row/.cliff/... rules below apply.)
+   ============================================================ */
+
+.top-bar {
   position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 10;
-  width: 264px;
-  max-height: calc(100vh - 24px);
-  display: flex;
-  flex-direction: column;
-  background: rgba(10, 14, 26, 0.82);
-  border: 1px solid #2a3350;
-  border-radius: 10px;
-  backdrop-filter: blur(6px);
-  font-size: 12px;
-  overflow: hidden;
-}
-
-.hud-head {
-  flex: 0 0 auto;
-  padding: 12px 14px 10px;
-  border-bottom: 1px solid #1c2438;
-}
-
-.hud-brand {
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  height: 46px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  background: rgba(8, 11, 20, 0.86);
+  border-bottom: 1px solid #1c2438;
+  backdrop-filter: blur(8px);
 }
 
-.hud-mark {
-  width: 34px;
-  height: 34px;
+.tb-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.tb-mark {
+  width: 26px;
+  height: 26px;
   object-fit: contain;
   flex: 0 0 auto;
 }
 
-.hud-brand h1 {
+.top-bar h1 {
+  font-size: 13px;
   margin: 0;
+  letter-spacing: 0.04em;
+  color: #89b4fa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.tb-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #1a2035;
+  color: #cdd6f4;
+  border: 1px solid #2a3350;
+  border-radius: 6px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tb-actions button:hover {
+  background: #222a44;
+  border-color: #3a4a6e;
+}
+
+.tb-actions button svg {
+  color: #89b4fa;
+}
+
+.tb-err {
+  position: fixed;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 13;
+  max-width: min(560px, calc(100vw - 32px));
+  color: #f38ba8;
+  background: rgba(30, 10, 16, 0.92);
+  border: 1px solid #5a2432;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+/* Left icon rail --------------------------------------------------------- */
+.icon-rail {
+  position: fixed;
+  top: 58px;
+  left: 12px;
+  z-index: 11;
+  width: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  background: rgba(10, 14, 26, 0.82);
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+}
+
+.rail-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #a6adc8;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.rail-btn:hover {
+  background: rgba(137, 180, 250, 0.12);
+  color: #cdd6f4;
+}
+
+.rail-btn.active {
+  background: rgba(137, 180, 250, 0.18);
+  border-color: #89b4fa;
+  color: #89b4fa;
+}
+
+.rail-btn.empty {
+  opacity: 0.32;
+}
+
+.rail-spacer {
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+
+/* One-lens drawer -------------------------------------------------------- */
+.lens-drawer {
+  position: fixed;
+  top: 58px;
+  left: 72px;
+  z-index: 11;
+  width: 380px;
+  max-width: calc(100vw - 96px);
+  max-height: calc(100vh - 70px - 96px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 14, 26, 0.9);
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.lens-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px 10px 14px;
+  border-bottom: 1px solid #1c2438;
+}
+
+.lens-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #89b4fa;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #6c7086;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.icon-btn:hover {
+  color: #cdd6f4;
+  background: rgba(137, 180, 250, 0.12);
+}
+
+.lens-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 10px;
+}
+
+/* Bottom control dock ---------------------------------------------------- */
+.bottom-dock {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 11;
+  width: max-content;
+  max-width: min(760px, calc(100vw - 160px));
+  background: rgba(10, 14, 26, 0.9);
+  border: 1px solid #2a3350;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.dock-handle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #a6adc8;
+  cursor: pointer;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bottom-dock.open .dock-handle {
+  border-bottom: 1px solid #1c2438;
+}
+
+.dock-handle:hover {
+  color: #cdd6f4;
+}
+
+.dock-handle span {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.dock-badge {
+  background: #f38ba8;
+  color: #0a0e1a;
+  border-radius: 8px;
+  font-size: 10px;
+  padding: 1px 6px;
+  letter-spacing: 0;
+}
+
+.dock-body {
+  padding: 12px 14px;
+}
+
+.dock-drivers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 18px;
+}
+
+.dock-driver {
+  min-width: 130px;
+  flex: 1 1 130px;
+}
+
+.dock-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  background: none;
+  border: none;
+  color: #89b4fa;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.dock-reset:hover {
+  text-decoration: underline;
+}
+
+.dock-pressure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #1c2438;
+}
+
+.dock-pressure-label {
+  color: #fab387;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pressure-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a2035;
+  border: 1px solid #2a3350;
+  border-radius: 20px;
+  padding: 3px 10px 3px 8px;
+  color: #cdd6f4;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  max-width: 240px;
+}
+
+.pressure-chip:hover {
+  border-color: #f9e2af;
+}
+
+.pressure-chip .pc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.pressure-chip .pc-val {
+  color: #f9e2af;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* Clean-view restore affordance ----------------------------------------- */
+.clean-restore {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 12;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 14, 26, 0.82);
+  border: 1px solid #2a3350;
+  border-radius: 10px;
+  color: #a6adc8;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.clean-restore:hover {
+  color: #cdd6f4;
+  border-color: #89b4fa;
 }
 
 .corner-watermark {
@@ -88,59 +416,10 @@ body,
   opacity: 0;
 }
 
-.hud h1 {
-  font-size: 13px;
-  margin: 0 0 8px;
-  letter-spacing: 0.04em;
-  color: #89b4fa;
-  overflow-wrap: anywhere;
-}
-
 .hud-scroll {
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-.hud-foot {
-  flex: 0 0 auto;
-  padding: 8px 14px;
-  border-top: 1px solid #1c2438;
-  color: #6c7086;
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.hud details {
-  border-bottom: 1px solid #161d2e;
-}
-
-.hud summary {
-  cursor: pointer;
-  padding: 9px 14px;
-  color: #a6adc8;
-  list-style: none;
-  user-select: none;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.hud summary::-webkit-details-marker {
-  display: none;
-}
-
-.hud summary::before {
-  content: "▸ ";
-  color: #45507a;
-}
-
-.hud details[open] summary::before {
-  content: "▾ ";
-}
-
-.hud summary:hover {
-  color: #cdd6f4;
 }
 
 .hud .sec {
@@ -207,14 +486,14 @@ body,
   margin: 6px 0 2px;
 }
 
-.driver {
-  margin: 4px 0 9px;
+.dock-driver {
+  margin: 2px 0 0;
 }
 
-.driver input[type='range'] {
+.dock-driver input[type='range'] {
   width: 100%;
   accent-color: #89b4fa;
-  margin-top: 3px;
+  margin-top: 4px;
   cursor: pointer;
 }
 
@@ -250,18 +529,18 @@ body,
 
 .inspector {
   position: fixed;
-  top: 12px;
+  top: 58px;
   right: 12px;
-  z-index: 10;
-  width: 280px;
-  max-height: calc(100vh - 24px);
+  z-index: 11;
+  width: 300px;
+  max-height: calc(100vh - 70px - 12px);
   display: flex;
   flex-direction: column;
   background: rgba(10, 14, 26, 0.9);
   border: 1px solid #2a3350;
-  border-radius: 10px;
-  backdrop-filter: blur(6px);
-  font-size: 12px;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  font-size: 13px;
   overflow: hidden;
 }
 
@@ -382,7 +661,7 @@ body,
   flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
-  white-space: pre-line;
+  white-space: normal;
   text-align: center;
 }
 

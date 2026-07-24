@@ -68,9 +68,15 @@ on-demand shadows, dpr/MSAA tiering), and graceful HD/Lite degradation.
 
 ## Portal architecture (Cloudflare-native, matches the house stack)
 
-- **App** → static build on **Cloudflare Pages** (generic tool repo only).
-  **LIVE: `https://studio.vahndre.com`** (viewer route `/viewer`; embed-ready
-  `_headers`/`_redirects` shipped). `VIEWER_ORIGIN = https://studio.vahndre.com`.
+- **App** → **Cloudflare Pages, git-connected** to `VAHNDRE-ventures/stack-studio`
+  (project `stack-studio-app`). **LIVE: `https://studio.vahndre.com`** — every push
+  to `main` auto-builds (`npm run build` in `app/`) and deploys; **no hand-deploys**.
+  `main` is therefore a **production branch**: only push green code
+  (typecheck + test + build), and note a breaking viewer/schema change reaches prod
+  on push (loader-migration + the stored `modelVersion` mitigate — older models
+  up-convert on load). `VIEWER_ORIGIN = https://studio.vahndre.com`. Embed
+  `_headers`/`_redirects` shipped; `frame-ancestors` already allows both
+  `portal.vahndre.com` and `internal.vahndre.com` (internal dogfood ready).
 - **Project data feed** → each project's validated `*.v2.json` in its own **KV or
   R2**, NOT in the tool repo. Portal fetches at view time.
 - **Auth** → **Cloudflare Access** in front of Pages + the data Worker. The data

@@ -18,9 +18,7 @@ export function CostPanel() {
   const selId = sel?.kind === 'node' ? sel.id : undefined;
 
   return (
-    <details open>
-      <summary>Cost foresight</summary>
-      <div className="sec">
+    <div className="sec">
         <div
           className={`row clickable${costFocus === 'fixed' ? ' sel' : ''}`}
           onClick={() => toggleCostFocus('fixed')}
@@ -127,6 +125,5 @@ export function CostPanel() {
           </div>
         ))}
       </div>
-    </details>
   );
 }

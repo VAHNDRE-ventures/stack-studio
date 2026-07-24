@@ -10,7 +10,7 @@ import { PaintSplatters } from './city/PaintSplatters';
 import { Backdrop } from './city/Backdrop';
 import { QualityController } from './city/QualityController';
 import { InspectorPanel } from './InspectorPanel';
-import { Sidebar } from './hud/Sidebar';
+import { Hud } from './hud/Hud';
 import { Modal } from './hud/Modal';
 import { CornerWatermark } from './hud/CornerWatermark';
 import { Splash } from './hud/Splash';
@@ -115,7 +115,7 @@ export function App() {
         </EffectComposer>
       </Canvas>
 
-      <Sidebar />
+      <Hud />
       <CornerWatermark />
 
       {sel && (

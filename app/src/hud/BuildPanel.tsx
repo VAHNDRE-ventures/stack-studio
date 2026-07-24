@@ -19,9 +19,7 @@ export function BuildPanel() {
   const cutoffVal = phaseCutoff ?? maxOrder;
 
   return (
-    <details>
-      <summary>Build progress</summary>
-      <div className="sec">
+    <div className="sec">
         {phases.length === 0 ? (
           <div className="about">No build phases defined in this project.</div>
         ) : (
@@ -72,6 +70,5 @@ export function BuildPanel() {
           </>
         )}
       </div>
-    </details>
   );
 }

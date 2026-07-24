@@ -10,9 +10,7 @@ export function LegendPanel() {
   );
 
   return (
-    <details>
-      <summary>Legend · {kinds.length} kinds</summary>
-      <div className="sec legend">
+    <div className="sec legend">
         {kinds.map((k) => (
           <div className="row" key={k}>
             <span>
@@ -22,6 +20,5 @@ export function LegendPanel() {
           </div>
         ))}
       </div>
-    </details>
   );
 }

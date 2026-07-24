@@ -19,8 +19,7 @@ export function FlowPanel() {
   const selId = sel?.kind === 'node' ? sel.id : undefined;
 
   return (
-    <details>
-      <summary>Trace a flow</summary>
+    <>
       <div className="sec flowbtns">
         {flows.map((f) => (
           <button
@@ -28,7 +27,7 @@ export function FlowPanel() {
             className={f.id === activeFlow ? 'active' : ''}
             onClick={() => setActiveFlow(f.id)}
           >
-            {f.name.replace(/\s*\(/, '\n(')}
+            {f.name}
           </button>
         ))}
         <button className={!activeFlow ? 'active' : ''} onClick={() => setActiveFlow(undefined)}>
@@ -81,6 +80,6 @@ export function FlowPanel() {
           <div className="about">Toll accrues along the traced path · click a stop to inspect it.</div>
         </div>
       )}
-    </details>
+    </>
   );
 }

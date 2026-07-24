@@ -12,9 +12,7 @@ export function OverlayPanel() {
   const { zones, colorOf, counts } = useMemo(() => overlayInfo(project), [project]);
 
   return (
-    <details>
-      <summary>Compliance scopes</summary>
-      <div className="sec">
+    <div className="sec">
         {(zones ?? []).length === 0 ? (
           <div className="about">No compliance scopes defined in this project.</div>
         ) : (
@@ -43,6 +41,5 @@ export function OverlayPanel() {
           </>
         )}
       </div>
-    </details>
   );
 }
